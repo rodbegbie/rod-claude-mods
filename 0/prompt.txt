@@ -1,0 +1,17 @@
+OK, I've approved the PR, so you can merge it.
+
+---
+
+How do I remove the dev-mods copy?
+
+---
+
+OK, looks good.  You can clean up the branches.
+
+---
+
+/claude-md-management:revise-claude-md
+
+---
+
+Yup. All three.  Then commit and push on main.
