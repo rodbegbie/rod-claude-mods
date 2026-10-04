@@ -1,0 +1,161 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M44BCVZGHVBJ3RR9Q6FWD1FB",
+  "session_id": "e9fc756c-1a0f-480c-8f21-5b1834db1dff",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-04T20:58:58.262845Z",
+  "branch": "main",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "CLAUDE.md"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "ba532b78688d",
+  "checkpoint_transcript_start": 493,
+  "transcript_lines_at_start": 493,
+  "compact_transcript_start": 70,
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 18189,
+    "cache_read_tokens": 1302974,
+    "output_tokens": 4725,
+    "api_call_count": 9
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01JDPZmA3AkUK5BfhafHWbc7",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "plugin-authoring"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "7fecabfac596",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 39,
+        "end": 40,
+        "entry_ids": [
+          "c1de8139-2765-439b-9e90-3fb421f1290a"
+        ],
+        "tool_use_id": "toolu_01JDPZmA3AkUK5BfhafHWbc7"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01JDPZmA3AkUK5BfhafHWbc7"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: plugin-authoring",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01SMM5bgYCLQvete9qspdyys",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "markdown"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "2e069cdaff51",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 354,
+        "end": 355,
+        "entry_ids": [
+          "e89d7812-a527-45ff-ba13-2527adabc411"
+        ],
+        "tool_use_id": "toolu_01SMM5bgYCLQvete9qspdyys"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01SMM5bgYCLQvete9qspdyys"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: markdown",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "prompt-skill-claude-code-entire:address-findings-2026-10-04T20:13:58.885567Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "entire:address-findings"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "649ff02921ea",
+      "timestamp": "2026-10-04T20:13:58.885567Z",
+      "native": {
+        "command": "/entire:address-findings"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/entire:address-findings",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "prompt-skill-claude-code-claude-md-management:revise-claude-md-2026-10-04T20:52:23.049227Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "claude-md-management:revise-claude-md"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "2a845204c0e8",
+      "timestamp": "2026-10-04T20:52:23.049227Z",
+      "native": {
+        "command": "/claude-md-management:revise-claude-md"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/claude-md-management:revise-claude-md",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 11
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-10-04T20:58:58.232084Z",
+    "agent_lines": 29,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 29,
+    "total_lines_changed": 29,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 15,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".private-journal/2026-10-03/20-49-35-000000-9c66857e.md": 15
+      }
+    }
+  ]
+}

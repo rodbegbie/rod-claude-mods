@@ -1,0 +1,9 @@
+OK, I've approved the trail. Please merge this PR and clear up the branches.
+
+---
+
+/claude-md-management:revise-claude-md
+
+---
+
+all three is good.  commit and push on main.
