@@ -42,6 +42,9 @@ the limit, followed by the percentage used and the time until that window
 resets. Windows only appear once Claude has reported them, so nothing
 shows on API-key accounts.
 
+![The pro-limits gauges above the prompt: the 5-hour limit at 13% in
+green and the weekly limit at 85% in red-orange](docs/pro-limits.png)
+
 A toast pops up each time a window passes 20%, 40%, 60%, 80%, 90% or
 95%. Hit 100% and the percentage turns into two skulls. Readings seen
 at session start never toast, only crossings after that.
