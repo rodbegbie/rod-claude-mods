@@ -192,6 +192,18 @@ async function searchSport($: EngineInterface, name: string, sport: Sport): Prom
   }
 }
 
+function distinctTeams(hits: TeamHit[]): TeamHit[] {
+  const seen = new Set<string>()
+
+  return hits.filter(hit => {
+    const key = `${hit.sport}/${hit.slug}`
+    if (seen.has(key)) return false
+    seen.add(key)
+
+    return true
+  })
+}
+
 async function searchTeams($: EngineInterface, name: string): Promise<TeamHit[] | null> {
   const hits: TeamHit[] = []
   for (const sport of SPORTS) {
@@ -200,7 +212,7 @@ async function searchTeams($: EngineInterface, name: string): Promise<TeamHit[] 
     hits.push(...found)
   }
 
-  return hits
+  return distinctTeams(hits)
 }
 
 async function leagueOf($: EngineInterface, hit: TeamHit): Promise<string> {
@@ -215,8 +227,10 @@ async function leagueOf($: EngineInterface, hit: TeamHit): Promise<string> {
   }
 }
 
-function pickLabel(hit: TeamHit, league: string): string {
-  return [`${SPORT_EMOJI[hit.sport]} ${hit.name}`, league].filter(Boolean).join(SEPARATOR)
+function pickLabels(hits: TeamHit[], leagues: string[]): string[] {
+  const labels = hits.map((hit, i) => [`${SPORT_EMOJI[hit.sport]} ${hit.name}`, leagues[i]].filter(Boolean).join(SEPARATOR))
+
+  return labels.map((label, i) => (labels.indexOf(label) === labels.lastIndexOf(label) ? label : `${label} (${hits[i].slug})`))
 }
 
 async function followedTeams($: EngineInterface): Promise<Followed[]> {
@@ -448,7 +462,7 @@ export const register: Register = on => {
     let hit = hits[0]
     if (hits.length > 1) {
       const leagues = await Promise.all(hits.map(h => leagueOf($, h)))
-      const labels = hits.map((h, i) => pickLabel(h, leagues[i]))
+      const labels = pickLabels(hits, leagues)
       const answer = await $.ui.ask(`Which team matches "${name}"?`, { options: labels, header: 'Team' }).catch(() => null)
       const picked = hits.find((_, i) => labels[i] === answer)
       if (!picked) return { text: 'No team followed.' }

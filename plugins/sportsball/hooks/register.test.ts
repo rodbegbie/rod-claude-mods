@@ -133,6 +133,61 @@ test('follow-team with several hits asks which, naming each team league, and fol
   expect(h.store.get('followed')).toEqual([{ sport: 'basketball', ...bluefire }])
 })
 
+test('an exact name match still asks when other teams match too', async ($, on) => {
+  const atletico = { name: 'Atletico', slug: 'atletico' }
+  const aguada = { name: 'Atletico Aguada', slug: 'atletico-aguada' }
+  const h = harness(on, searchRoutes([atletico, aguada]))
+  h.asks.answer = '🏀 Atletico Aguada'
+  await start($)
+
+  const { text } = await run($, 'follow-team', 'atletico')
+
+  expect(h.asks.calls[0].labels).toEqual(['🏀 Atletico', '🏀 Atletico Aguada'])
+  expect(text).toContain('Now following Atletico Aguada')
+})
+
+test('a team whose league lookup fails is offered by sport and name alone', async ($, on) => {
+  const h = harness(on, { ...searchRoutes([valkyries, bluefire]), ...leagueRoute(valkyries.slug, 'WNBA') })
+  await start($)
+
+  await run($, 'follow-team', 'valkyries')
+
+  expect(h.asks.calls[0].labels).toEqual(['🏀 Golden State Valkyries · WNBA', '🏀 Bluefire Valkyries (W)'])
+})
+
+test('hits repeating a sport and slug are one team', async ($, on) => {
+  const h = harness(on, { ...searchRoutes([], [tigre, tigre, { name: 'Tigre B', slug: 'tigre-b' }]) })
+  h.asks.answer = '⚽ Tigre B'
+  await start($)
+
+  await run($, 'follow-team', 'tigre')
+
+  expect(h.asks.calls[0].labels).toEqual([`⚽ ${tigre.name}`, '⚽ Tigre B'])
+})
+
+test('a search that finds one team twice follows it without asking', async ($, on) => {
+  const h = harness(on, { ...searchRoutes([], [tigre, tigre]) })
+  await start($)
+
+  const { text } = await run($, 'follow-team', 'tigre')
+
+  expect(h.asks.calls).toHaveLength(0)
+  expect(text).toContain(`Now following ${tigre.name}`)
+})
+
+test('different teams with the same label are told apart by their slug', async ($, on) => {
+  const first = { name: 'Atletico Basket U20', slug: 'atletico-basket-u20' }
+  const second = { name: 'Atletico Basket U20', slug: 'atletico-basket-u20-2' }
+  const h = harness(on, searchRoutes([first, second]))
+  h.asks.answer = '🏀 Atletico Basket U20 (atletico-basket-u20-2)'
+  await start($)
+
+  await run($, 'follow-team', 'atletico basket')
+
+  expect(h.asks.calls[0].labels).toEqual(['🏀 Atletico Basket U20 (atletico-basket-u20)', '🏀 Atletico Basket U20 (atletico-basket-u20-2)'])
+  expect(h.store.get('followed')).toEqual([{ sport: 'basketball', ...second }])
+})
+
 test('dismissing the team question follows nothing and keeps the current team', async ($, on) => {
   const h = harness(on, searchRoutes([valkyries, bluefire]), followingValkyries)
   await start($)
