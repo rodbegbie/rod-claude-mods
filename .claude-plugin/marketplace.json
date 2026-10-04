@@ -11,6 +11,13 @@
       "description": "Draws the context window as a stacked bar above the prompt, toggled with /context-bar",
       "version": "0.1.0",
       "author": { "name": "Rod Begbie" }
+    },
+    {
+      "name": "pro-limits",
+      "source": "./plugins/pro-limits",
+      "description": "Gauges for the 5-hour and weekly Claude usage limits above the prompt, toggled with /pro-limits",
+      "version": "0.2.0",
+      "author": { "name": "Rod Begbie" }
     }
   ]
 }
