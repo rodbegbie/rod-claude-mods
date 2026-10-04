@@ -75,7 +75,17 @@ function harness(on: any, routes: Record<string, Route>, initial: Record<string,
   const toasts: { text: string; timeoutMs?: number }[] = []
   on('ui.toast', async (_$: any, e: any) => (toasts.push({ text: e.text, timeoutMs: e.timeoutMs }), { value: undefined }))
   on('ui.render', async () => ({ type: 'Text', children: ['ENGINE'] }))
-  return { store, urls, delays, clock, proc, toasts }
+  const asks = {
+    calls: [] as { question: string; labels: string[] }[],
+    answer: undefined as string | undefined,
+  }
+  on('tool.call', async (_$: any, e: any) => {
+    const [asked] = e.questions
+    asks.calls.push({ question: asked.question, labels: asked.options.map((o: any) => o.label) })
+    if (asks.answer === undefined) return { deny: 'dismissed' }
+    return { result: { questions: e.questions, answers: { [asked.question]: asks.answer } } }
+  })
+  return { store, urls, delays, clock, proc, toasts, asks }
 }
 
 const liveMatch = {
@@ -102,14 +112,45 @@ const readingOf = async (_$: any) => states.reading ?? null
 const start = ($: any) => $.session.start({ source: 'startup', cwd: '/tmp' })
 const run = ($: any, command: string, args = '') => $.command.run({ command, args })
 
-test('follow-team with several hits lists them and follows nothing', async ($, on) => {
-  const h = harness(on, { ...searchRoutes([valkyries, bluefire]) })
+const leagueRoute = (slug: string, competition: string): Record<string, Route> => ({
+  [`slug=${slug}&limit=1`]: { body: { sport: 'basketball', team: { slug }, count: 1, matches: [{ competition }] } },
+})
+
+test('follow-team with several hits asks which, naming each team league, and follows the pick', async ($, on) => {
+  const h = harness(on, {
+    ...searchRoutes([valkyries, bluefire]),
+    ...leagueRoute(valkyries.slug, 'WNBA'),
+    ...leagueRoute(bluefire.slug, 'Pro Women'),
+  })
+  h.asks.answer = '🏀 Bluefire Valkyries (W) · Pro Women'
   await start($)
 
   const { text } = await run($, 'follow-team', 'valkyries')
 
-  expect(text).toContain('Golden State Valkyries')
-  expect(text).toContain('Bluefire Valkyries (W)')
+  expect(h.asks.calls).toHaveLength(1)
+  expect(h.asks.calls[0].labels).toEqual(['🏀 Golden State Valkyries · WNBA', '🏀 Bluefire Valkyries (W) · Pro Women'])
+  expect(text).toContain('Now following Bluefire Valkyries (W)')
+  expect(h.store.get('followed')).toEqual([{ sport: 'basketball', ...bluefire }])
+})
+
+test('dismissing the team question follows nothing and keeps the current team', async ($, on) => {
+  const h = harness(on, searchRoutes([valkyries, bluefire]), followingValkyries)
+  await start($)
+
+  const { text } = await run($, 'follow-team', 'valkyries')
+
+  expect(text).toBe('No team followed.')
+  expect(h.store.get('followed')).toEqual(followingValkyries.followed)
+})
+
+test('free text that matches no team label follows nothing', async ($, on) => {
+  const h = harness(on, searchRoutes([valkyries, bluefire]))
+  h.asks.answer = 'the other one'
+  await start($)
+
+  const { text } = await run($, 'follow-team', 'valkyries')
+
+  expect(text).toBe('No team followed.')
   expect(h.store.get('followed')).toBeUndefined()
 })
 
@@ -796,14 +837,13 @@ test('follow-team follows a football team and records its sport', async ($, on) 
   expect(h.store.get('followed')).toEqual([{ sport: 'football', ...atlanta }])
 })
 
-test('hits from both sports are listed with their sport emoji', async ($, on) => {
+test('hits from both sports are offered with their sport emoji', async ($, on) => {
   const h = harness(on, searchRoutes([valkyries], [tigre]))
   await start($)
 
-  const { text } = await run($, 'follow-team', 'x1')
+  await run($, 'follow-team', 'x1')
 
-  expect(text).toContain('🏀 Golden State Valkyries')
-  expect(text).toContain('⚽ Club Atletico Tigre')
+  expect(h.asks.calls[0].labels).toEqual(['🏀 Golden State Valkyries', '⚽ Club Atletico Tigre'])
   expect(h.store.get('followed')).toBeUndefined()
 })
 

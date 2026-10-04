@@ -203,6 +203,22 @@ async function searchTeams($: EngineInterface, name: string): Promise<TeamHit[] 
   return hits
 }
 
+async function leagueOf($: EngineInterface, hit: TeamHit): Promise<string> {
+  try {
+    const response = await $.http.fetch(`${TEAM_URL}?sport=${hit.sport}&slug=${encodeURIComponent(hit.slug)}&limit=1`)
+    if (!response.ok) return ''
+    const matches = (JSON.parse(response.text) as { matches?: unknown }).matches
+
+    return Array.isArray(matches) ? text(matches[0]?.competition) : ''
+  } catch {
+    return ''
+  }
+}
+
+function pickLabel(hit: TeamHit, league: string): string {
+  return [`${SPORT_EMOJI[hit.sport]} ${hit.name}`, league].filter(Boolean).join(SEPARATOR)
+}
+
 async function followedTeams($: EngineInterface): Promise<Followed[]> {
   const stored = await $.store.get('followed')
   if (!Array.isArray(stored)) return []
@@ -429,12 +445,15 @@ export const register: Register = on => {
     const hits = await searchTeams($, name)
     if (hits === null) return { text: "Couldn't look up that team just now. Try again shortly." }
     if (hits.length === 0) return { text: `No team matched "${name}".` }
-    const exact = hits.filter(h => h.name.toLowerCase() === name.toLowerCase())
-    const chosen = hits.length === 1 ? hits : exact.length === 1 ? exact : null
-    if (chosen === null) {
-      return { text: `Several teams match "${name}": ${hits.map(h => `${SPORT_EMOJI[h.sport]} ${h.name}`).join(', ')}. Try a more specific name.` }
+    let hit = hits[0]
+    if (hits.length > 1) {
+      const leagues = await Promise.all(hits.map(h => leagueOf($, h)))
+      const labels = hits.map((h, i) => pickLabel(h, leagues[i]))
+      const answer = await $.ui.ask(`Which team matches "${name}"?`, { options: labels, header: 'Team' }).catch(() => null)
+      const picked = hits.find((_, i) => labels[i] === answer)
+      if (!picked) return { text: 'No team followed.' }
+      hit = picked
     }
-    const [hit] = chosen
     await $.store.set('followed', [{ sport: hit.sport, slug: hit.slug, name: hit.name }])
     await poll($)
 
