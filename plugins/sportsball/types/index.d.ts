@@ -1,6 +1,7 @@
 export type Followed = { sport: 'basketball'; slug: string; name: string }
 
 export type LiveGame = {
+  key: string
   home: string
   away: string
   homeScore: string

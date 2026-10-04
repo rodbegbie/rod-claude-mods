@@ -13,6 +13,7 @@ const MIN_NAME_LENGTH = 2
 const LIVE_POLL_MS = 30_000
 const IDLE_POLL_MS = 300_000
 const STALE_MS = 10 * 60_000
+const TOAST_MS = 8000
 const HELPER_TIMEOUT_MS = 15_000
 const MIN_LUMINANCE = 0.35
 const HEX_COLOUR = /^#[0-9a-f]{6}$/
@@ -200,6 +201,7 @@ function score(value: unknown): string {
 
 function toLiveGame(m: Record<string, unknown>): LiveGame {
   return {
+    key: `${text(m.url)}|${text(m.time)}`,
     home: text(m.home),
     away: text(m.away),
     homeScore: score(m.home_score),
@@ -211,17 +213,38 @@ function toLiveGame(m: Record<string, unknown>): LiveGame {
   }
 }
 
-async function fetchLiveGame($: EngineInterface, team: Followed): Promise<LiveGame | null | 'error'> {
+type Games = { live: LiveGame | null; finished: LiveGame[] }
+
+async function fetchGames($: EngineInterface, team: Followed): Promise<Games | 'error'> {
   try {
     const response = await $.http.fetch(`${TEAM_URL}?sport=${team.sport}&slug=${encodeURIComponent(team.slug)}&limit=10`)
     if (!response.ok) return 'error'
     const matches = (JSON.parse(response.text) as { matches?: unknown }).matches
     if (!Array.isArray(matches)) return 'error'
     const live = matches.find(m => m?.status === 'live')
-    return live ? toLiveGame(live) : null
+
+    return {
+      live: live ? toLiveGame(live) : null,
+      finished: matches.filter(m => m?.status === 'finished').map(toLiveGame),
+    }
   } catch {
     return 'error'
   }
+}
+
+function scoreline(sport: Followed['sport'], label: string, game: LiveGame): string {
+  return `${SPORT_EMOJI[sport]} ${label}: ${game.home} ${game.homeScore} - ${game.awayScore} ${game.away}`
+}
+
+function announcement(sport: Followed['sport'], previous: Reading | null, games: Games): string | null {
+  const before = previous?.game
+  if (!before) return null
+  if (games.live?.key === before.key) {
+    return games.live.statusText !== before.statusText ? scoreline(sport, games.live.statusText, games.live) : null
+  }
+  const final = games.finished.find(game => game.key === before.key)
+
+  return final ? scoreline(sport, 'Full time', final) : null
 }
 
 function nextReading(result: LiveGame | null | 'error', team: Followed, previous: Reading | null, now: number): Reading | null {
@@ -300,12 +323,17 @@ async function poll($: EngineInterface): Promise<void> {
     await update($, reading, () => null)
     return
   }
-  const result = await fetchLiveGame($, team)
+  const games = await fetchGames($, team)
   const [current] = await followedTeams($)
   if (current?.slug !== team.slug) return
   const now = await $.clock.now()
-  const next = nextReading(result, team, await read($, reading), now)
+  const previous = await read($, reading)
+  const next = nextReading(games === 'error' ? 'error' : games.live, team, previous, now)
   await update($, reading, () => next)
+  if (games !== 'error' && (await read($, isOn))) {
+    const toast = announcement(team.sport, previous, games)
+    if (toast) $.ui.toast(toast, { timeoutMs: TOAST_MS })
+  }
   pendingPoll = $.clock.after(next?.game ? LIVE_POLL_MS : IDLE_POLL_MS, () => poll($))
   if (next?.game) {
     const game = next.game

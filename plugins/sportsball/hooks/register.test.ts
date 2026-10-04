@@ -67,8 +67,10 @@ function harness(on: any, routes: Record<string, Route>, initial: Record<string,
   on('command.register', async () => ({ value: undefined }))
   on('clock.after', (_$: any, e: any) => (e.ms === 0 ? Promise.resolve({ value: undefined }) : (delays.push(e.ms), new Promise(() => {}))))
   on('clock.now', async () => ({ value: clock.now }))
+  const toasts: { text: string; timeoutMs?: number }[] = []
+  on('ui.toast', async (_$: any, e: any) => (toasts.push({ text: e.text, timeoutMs: e.timeoutMs }), { value: undefined }))
   on('ui.render', async () => ({ type: 'Text', children: ['ENGINE'] }))
-  return { store, urls, delays, clock, proc }
+  return { store, urls, delays, clock, proc, toasts }
 }
 
 const liveMatch = {
@@ -637,4 +639,117 @@ test('the attribution stays on the game row down to 20 columns for the game, the
 
   expect((await mountBand($, 46)).props?.flexDirection).not.toBe('column')
   expect((await mountBand($, 45)).props?.flexDirection).toBe('column')
+})
+
+const inPlay = (statusText: string, home = '34', away = '31') => ({ ...liveMatch, status_text: statusText, home_score: home, away_score: away })
+const settled = { ...liveMatch, status: 'finished', status_text: 'Finished', home_score: '77', away_score: '73' }
+
+function toastRig(on: any, first: object[]) {
+  const routes: Record<string, Route> = { [TEAM_ROUTE]: { body: schedule(...first) } }
+  const h = harness(on, routes, { ...followingValkyries, ...colouredLogos })
+  const next = (...matches: object[]) => (routes[TEAM_ROUTE] = { body: schedule(...matches) })
+  return { h, next, routes }
+}
+
+test('the first reading after a load is silent', async ($, on) => {
+  const { h } = toastRig(on, [inPlay('Half time')])
+
+  await start($)
+
+  expect(h.toasts).toEqual([])
+})
+
+test('a change of period toasts the new status with the score', async ($, on) => {
+  const { h, next } = toastRig(on, [inPlay('Half time')])
+  await start($)
+  next(inPlay('3rd quarter', '40', '38'))
+
+  await start($)
+
+  expect(h.toasts).toEqual([{ text: '🏀 3rd quarter: Golden State Valkyries 40 - 38 Las Vegas Aces', timeoutMs: 8000 }])
+})
+
+test('a score change within the same period is silent', async ($, on) => {
+  const { h, next } = toastRig(on, [inPlay('3rd quarter', '40', '38')])
+  await start($)
+  next(inPlay('3rd quarter', '44', '38'))
+
+  await start($)
+
+  expect(h.toasts).toEqual([])
+})
+
+test('full time toasts the final score when the game on screen finishes', async ($, on) => {
+  const { h, next } = toastRig(on, [inPlay('4th quarter', '75', '73')])
+  await start($)
+  next(settled)
+
+  await start($)
+
+  expect(h.toasts).toEqual([{ text: '🏀 Full time: Golden State Valkyries 77 - 73 Las Vegas Aces', timeoutMs: 8000 }])
+  expect((await readingOf($)).game).toBeNull()
+})
+
+test('an older finished match at the same URL is not mistaken for full time', async ($, on) => {
+  const { h, next } = toastRig(on, [inPlay('4th quarter')])
+  await start($)
+  next({ ...settled, time: '2026-10-01T01:00:00+00:00' })
+
+  await start($)
+
+  expect(h.toasts).toEqual([])
+})
+
+test('a game that disappears without finishing is silent', async ($, on) => {
+  const { h, next } = toastRig(on, [inPlay('4th quarter')])
+  await start($)
+  next()
+
+  await start($)
+
+  expect(h.toasts).toEqual([])
+  expect((await readingOf($)).game).toBeNull()
+})
+
+test('toggled off mutes toasts but keeps tracking, so only later changes toast', async ($, on) => {
+  const { h, next } = toastRig(on, [inPlay('Half time')])
+  await start($)
+  await run($, 'sportsball')
+  next(inPlay('3rd quarter'))
+  await start($)
+  expect(h.toasts).toEqual([])
+
+  await run($, 'sportsball')
+  next(inPlay('4th quarter'))
+  await start($)
+
+  expect(h.toasts.map(toast => toast.text)).toEqual(['🏀 4th quarter: Golden State Valkyries 34 - 31 Las Vegas Aces'])
+})
+
+test('a failed poll toasts nothing, and recovery with the same status stays silent', async ($, on) => {
+  const { h, routes } = toastRig(on, [inPlay('Half time')])
+  await start($)
+  const good = routes[TEAM_ROUTE]
+  routes[TEAM_ROUTE] = { status: 500, body: 'oops' }
+  await start($)
+  routes[TEAM_ROUTE] = good
+
+  await start($)
+
+  expect(h.toasts).toEqual([])
+})
+
+test('switching to a team in a different game does not toast', async ($, on) => {
+  const other = { ...inPlay('3rd quarter'), url: '/basketball/match/bluefire-game/', time: '2026-10-04T22:00:00+00:00' }
+  const routes: Record<string, Route> = {
+    [TEAM_ROUTE]: { body: schedule(inPlay('Half time')) },
+    'slug=bluefire-valkyries-w': { body: schedule(other) },
+    '/api/v1/search/': { body: searchBody([bluefire]) },
+  }
+  const h = harness(on, routes, { ...followingValkyries, ...colouredLogos })
+  await start($)
+
+  await run($, 'follow-team', 'bluefire')
+
+  expect(h.toasts).toEqual([])
 })

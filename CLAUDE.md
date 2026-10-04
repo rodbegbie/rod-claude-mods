@@ -156,6 +156,11 @@ them, so a test must stub every event the mod touches or it fails with
 - The "Powered by SportScore" credit is a `Link` (licence requirement),
   right-aligned on the last game row. It drops to its own row below only
   when fewer than 20 columns would be left for the game text.
+- A game is identified by `LiveGame.key`, its match `url` plus start
+  `time`: the same fixture URL is reused for repeat matchups between two
+  teams, so the URL alone would confuse them. Toasts fire when a followed
+  game's `status_text` changes or it turns up as `finished`; scores
+  changing alone never toast. There is no clock in `status_text`.
 - `poll` discards a result if the followed team changed while its fetch
   was in flight. Keep that check if you touch it.
 

@@ -74,6 +74,11 @@ empty when the team has no live game.
 - `/sportsball` shows or hides the band. The followed team is kept
   across sessions either way.
 
+A toast appears when the game moves to a new period (for example
+"Half time" or "4th quarter") and at full time, each with the score.
+The first reading after a load is silent, so starting Claude mid-game
+doesn't toast. `/sportsball` off mutes toasts without losing track.
+
 It polls every 30 seconds while a game is live and every 5 minutes
 otherwise. If a poll fails, the last score stays on screen, dimmed, for
 up to 10 minutes. Basketball only for now.
