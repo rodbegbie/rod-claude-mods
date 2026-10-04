@@ -80,6 +80,22 @@ them, so a test must stub every event the mod touches or it fails with
 - If a mod answers `ui.render` with `next(e)` (nothing to draw), a
   `ui.render` stub returning `{ value: null }` fails with "not a tree
   element". Assert on state or toasts instead of mounting in that case.
+- A test's `$` has no `state` noun. To read a mod's state, register
+  `on('state.set', (_$, e, next) => (seen[e.key] = e.value, next(e)))`
+  and assert on what was written. Assert on the whole write history when
+  a stale write could be masked by a later one.
+- A `ui.render` stub answers with the tree itself, not `{ value }`. Use
+  a distinctive stub tree to tell `next(e)` from the mod's own drawing.
+- An `on('clock.after', ...)` stub that resolves makes the kit fire the
+  callback at once, in the background. Return a promise that never
+  resolves, and record `e.ms`, to assert on the delay without firing.
+  sportsball resolves only `ms === 0`, its way of moving work off the
+  hook path, so tests wait for that work with a short polling loop.
+- A throwing `ui.render` hook is swallowed and the engine draws its own
+  tree, which looks like `next(e)` to a test.
+- The test runner has no `test.each`; loop and call `test` instead.
+- `on(...)` stubs must all be registered before the test first calls
+  `$`, so one test cannot build two harnesses.
 - Capture toasts with `on('ui.toast', ...)` and drive `session.measure` and
   `command.run` directly with `$.session.measure(...)` and
   `$.command.run(...)`.
@@ -111,6 +127,64 @@ them, so a test must stub every event the mod touches or it fails with
   tracking levels, so toggling back on never replays them.
 - Readout width is `READOUT_COLUMNS` (24). The 100% easter egg is two
   emoji, each two columns wide, so it fits the same space as `100%`.
+
+## sportsball specifics
+
+- Data is the SportScore public API (anonymous, about 10,000 requests a
+  day per IP). Scores come back as strings, whatever the OpenAPI spec
+  says. There is no quarter or clock field, only `status_text`.
+- The mod polls `/api/v1/team/`, not `/api/v1/fixtures/`, because
+  fixtures covers one UTC day and drops a game that crosses midnight.
+  The team endpoint returns matches newest-first, up to about 30, so
+  the request uses the maximum `limit=50`: a smaller limit returns only
+  far-future fixtures and hides a live game for a team with a long
+  season (football).
+- `live_minute` exists only on `/api/v1/match/`, never in the team
+  schedule, and is `null` for basketball, so only sports flagged in
+  `HAS_LIVE_MINUTE` pay for the extra request. The match slug is the
+  third segment of the match `url`; football URLs carry a trailing id
+  that must not be sent. A failed lookup yields no minute and never
+  fails the poll. `live_minute` is a string and is `"HT"` at half time,
+  so only digits with optional added time (`84`, `90+`, `45+2`) are
+  drawn. In stoppage time the API has been seen to send a bare `"90+"`.
+- `/follow-team` searches every sport in `SPORTS` (one request each, in
+  order) and fails the whole lookup if any request fails. A sport needs
+  an entry in `SPORTS` and in `SPORT_EMOJI`, and a `Sport` member in
+  `types/index.d.ts`.
+- Logo colours come from `LOGO_COLOUR_SCRIPT`, a Python script held as a
+  `String.raw` constant in `register.tsx`. The pytest in
+  `plugins/sportsball/tests` extracts it from there, so there is one
+  copy. Keep backticks and dollar-brace sequences out of it. Run the
+  tests with `uv run --with pytest pytest plugins/sportsball/tests`.
+- The script runs as `python3 -I -c` with `cwd: '/'`. Without them,
+  Python puts the session's working directory first on `sys.path`, so a
+  `struct.py` in the user's project would run in place of the stdlib.
+- Colour extraction runs from `$.clock.after(0, ...)`, not inside `poll`,
+  so session start and `/follow-team` never wait on the helper.
+- `/follow-team` follows a lone hit, or the one hit whose name equals the
+  typed name; several other matches get a list and no follow.
+- The script only accepts `https://` URLs because the URLs come from API
+  data. It decodes 8-bit RGB and RGBA PNGs without interlacing, which
+  covers every logo checked; anything else falls back to no colour.
+- Colours are lightened to a minimum luminance when accepted and cached
+  in `$.store`, keyed by logo URL. A failed logo is not retried until the
+  next session.
+- The "Powered by SportScore" credit is a `Link` (licence requirement),
+  right-aligned on the last game row. It drops to its own row below only
+  when fewer than 20 columns would be left for the game text.
+- A game is identified by `LiveGame.key`, its match `url` plus start
+  `time`: the same fixture URL is reused for repeat matchups between two
+  teams, so the URL alone would confuse them. Toasts fire when a followed
+  game's `status_text` changes or it turns up as `finished`, and in
+  sports flagged in `TOAST_ON_SCORE` (football) when the score changes.
+  A status change and a score change in one poll give one toast, labelled
+  by the status. The minute alone never toasts. There is no clock in
+  `status_text`.
+- Each `poll` takes a generation number; only the latest run may
+  publish, toast and schedule, so an older fetch finishing late is
+  discarded, and the followed sport and slug are re-checked too. A
+  reading is only carried over as stale for the same sport and slug.
+  Keep these checks if you touch `poll` or `nextReading`.
 
 ## Git and PRs
 
