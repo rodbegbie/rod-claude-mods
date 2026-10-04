@@ -1,0 +1,151 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M448Z7T3M9N7T7RPYGQFQH1Z",
+  "session_id": "e9fc756c-1a0f-480c-8f21-5b1834db1dff",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-04T20:16:33.38435Z",
+  "branch": "feature/usage-bars",
+  "checkpoints_count": 2,
+  "save_step_count": 1,
+  "files_touched": [
+    "plugins/pro-limits/hooks/register.test.ts",
+    "plugins/pro-limits/hooks/register.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "5a9908debabf",
+  "checkpoint_transcript_start": 389,
+  "transcript_lines_at_start": 389,
+  "compact_transcript_start": 54,
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 115035,
+    "cache_read_tokens": 1356655,
+    "output_tokens": 7011,
+    "api_call_count": 11
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01JDPZmA3AkUK5BfhafHWbc7",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "plugin-authoring"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "7fecabfac596",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 39,
+        "end": 40,
+        "entry_ids": [
+          "c1de8139-2765-439b-9e90-3fb421f1290a"
+        ],
+        "tool_use_id": "toolu_01JDPZmA3AkUK5BfhafHWbc7"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01JDPZmA3AkUK5BfhafHWbc7"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: plugin-authoring",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01SMM5bgYCLQvete9qspdyys",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "markdown"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "2e069cdaff51",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 354,
+        "end": 355,
+        "entry_ids": [
+          "e89d7812-a527-45ff-ba13-2527adabc411"
+        ],
+        "tool_use_id": "toolu_01SMM5bgYCLQvete9qspdyys"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01SMM5bgYCLQvete9qspdyys"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: markdown",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "prompt-skill-claude-code-entire:address-findings-2026-10-04T20:13:58.885567Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "entire:address-findings"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "649ff02921ea",
+      "timestamp": "2026-10-04T20:13:58.885567Z",
+      "native": {
+        "command": "/entire:address-findings"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/entire:address-findings",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 8
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-10-04T20:16:33.354984Z",
+    "agent_lines": 39,
+    "agent_removed": 7,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 39,
+    "total_lines_changed": 46,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 15,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".private-journal/2026-10-03/20-49-35-000000-9c66857e.md": 15
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 15,
+      "user_lines_removed": 0,
+      "agent_lines_added": 39,
+      "agent_lines_removed": 7,
+      "user_added_per_file": {
+        ".private-journal/2026-10-03/20-49-35-000000-9c66857e.md": 15
+      }
+    }
+  ]
+}
