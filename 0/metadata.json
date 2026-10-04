@@ -1,0 +1,144 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M42FVYB0GVK72CSN4GR63AN1",
+  "session_id": "f72a6738-d35c-4454-9e9d-463f90c7fd57",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-04T03:38:36.545368Z",
+  "branch": "feature/context-bar-mod",
+  "checkpoints_count": 6,
+  "save_step_count": 1,
+  "files_touched": [
+    "CLAUDE.md"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "a481a2ed507e",
+  "checkpoint_transcript_start": 437,
+  "transcript_lines_at_start": 437,
+  "compact_transcript_start": 70,
+  "token_usage": {
+    "input_tokens": 42,
+    "cache_creation_tokens": 15666,
+    "cache_read_tokens": 2552576,
+    "output_tokens": 9078,
+    "api_call_count": 20
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01Hiyjfd9gcKVcS3PivETMV6",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "plugin-authoring"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "46cc69857e0b",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 33,
+        "end": 34,
+        "entry_ids": [
+          "fd8398bb-4122-4258-82a8-e03e9d7591c0"
+        ],
+        "tool_use_id": "toolu_01Hiyjfd9gcKVcS3PivETMV6"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01Hiyjfd9gcKVcS3PivETMV6"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: plugin-authoring",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01FQ2XajXzE1iBm7L7jEJ2LN",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "markdown"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "46cc69857e0b",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 343,
+        "end": 344,
+        "entry_ids": [
+          "b1e97685-f699-4278-ad50-e18aef345898"
+        ],
+        "tool_use_id": "toolu_01FQ2XajXzE1iBm7L7jEJ2LN"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01FQ2XajXzE1iBm7L7jEJ2LN"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: markdown",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "prompt-skill-claude-code-init-2026-10-04T03:37:06.762081Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "init"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "5ca0f591cf94",
+      "timestamp": "2026-10-04T03:37:06.762081Z",
+      "native": {
+        "command": "/init"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/init",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 15
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-10-04T03:38:36.47486Z",
+    "agent_lines": 95,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 95,
+    "total_lines_changed": 95,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 95,
+      "agent_lines_removed": 0
+    }
+  ]
+}

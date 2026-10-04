@@ -1,0 +1,17 @@
+commit and push.  Start an entire trail for this branch.
+
+---
+
+Entire has opened a draft PR.  YOu can update the title & body of it
+
+---
+
+I renamed the local master branch to main, so that's OK.  I'also just committed some entire configuration on this branch.
+
+---
+
+Add a line about the entire runners configuration
+
+---
+
+/init a CLAUDE.md file for this repo too
