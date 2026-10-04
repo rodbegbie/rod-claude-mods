@@ -14,7 +14,7 @@ const usage = {
 
 async function mountBand($: any, bodyColumns: number) {
   const band = await $.ui.mount({
-    plugin: 'usage-bars',
+    plugin: 'pro-limits',
     surface: 'terminal',
     component: 'AbovePrompt',
     props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns },

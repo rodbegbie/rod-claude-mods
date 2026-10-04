@@ -3,8 +3,8 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { Usage } from '../types'
 
-const usage = atom({ plugin: 'usage-bars', key: 'usage' } as const, null)
-const isOn = atom({ plugin: 'usage-bars', key: 'isOn' } as const, true)
+const usage = atom({ plugin: 'pro-limits', key: 'usage' } as const, null)
+const isOn = atom({ plugin: 'pro-limits', key: 'isOn' } as const, true)
 
 const WINDOWS: Record<string, string> = { five_hour: '5-hour', seven_day: 'Weekly' }
 
@@ -82,7 +82,7 @@ async function refresh($: EngineInterface) {
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
-      name: 'usage-bars',
+      name: 'pro-limits',
       description: 'Toggle the 5-hour and weekly usage gauges above the prompt',
     })
     await refresh($)
@@ -97,7 +97,7 @@ export const register: Register = on => {
     return next(e)
   })
 
-  on('command.run', { command: 'usage-bars' }, async $ => {
+  on('command.run', { command: 'pro-limits' }, async $ => {
     const now = await update($, isOn, v => !v)
 
     return { text: `Usage bars ${now ? 'on' : 'off'}.` }

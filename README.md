@@ -9,7 +9,7 @@ Add the marketplace, then install the mods you want:
 ```text
 /plugin marketplace add rodbegbie/rod-claude-mods
 /plugin install context-bar@rod-claude-mods
-/plugin install usage-bars@rod-claude-mods
+/plugin install pro-limits@rod-claude-mods
 ```
 
 To try the marketplace from a local checkout, point at the folder instead:
@@ -23,7 +23,7 @@ To try the marketplace from a local checkout, point at the folder instead:
 | Mod | What it does |
 | --- | --- |
 | [context-bar](plugins/context-bar) | Stacked context-window bar above the prompt |
-| [usage-bars](plugins/usage-bars) | 5-hour and weekly usage-limit gauges above the prompt |
+| [pro-limits](plugins/pro-limits) | 5-hour and weekly usage-limit gauges above the prompt |
 
 ### context-bar
 
@@ -34,7 +34,7 @@ category's tokens and share of the window, then the total.
 Toggle it with `/context-bar`. It starts on, and refreshes at session
 start and after every turn.
 
-### usage-bars
+### pro-limits
 
 Draws one gauge per subscription limit (5-hour and weekly) above the
 prompt. Each bar shifts from green through amber to red as you approach
@@ -46,7 +46,7 @@ A toast pops up each time a window passes 20%, 40%, 60%, 80%, 90% or
 95%. Hit 100% and the percentage turns into three skulls. Readings seen
 at session start never toast, only crossings after that.
 
-Toggle it with `/usage-bars`. It starts on, refreshes whenever a limit
+Toggle it with `/pro-limits`. It starts on, refreshes whenever a limit
 moves a whole point, and ticks every 30 seconds to keep the countdown
 honest.
 
