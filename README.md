@@ -7,7 +7,7 @@ Rod Begbie's mods for Claude Code, published as a plugin marketplace.
 Add the marketplace, then install the mods you want:
 
 ```text
-/plugin marketplace add <github-owner>/rod-claude-mods
+/plugin marketplace add rodbegbie/rod-claude-mods
 /plugin install context-bar@rod-claude-mods
 ```
 
