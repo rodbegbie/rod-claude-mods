@@ -1,0 +1,2 @@
+{"v":1,"agent":"claude-code","cli_version":"0.11.3","type":"user","ts":"2026-10-04T21:44:48.988Z","content":[{"id":"63e5fdb1-5596-4774-84f0-ec5db9efa4a4","text":"reply with just the word ok"}]}
+{"v":1,"agent":"claude-code","cli_version":"0.11.3","type":"assistant","ts":"2026-10-04T21:44:50.834Z","id":"msg_011Cfhvove58LRFjDTtq4ufn","input_tokens":2,"output_tokens":4,"content":[{"text":"ok","type":"text"}]}

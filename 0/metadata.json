@@ -1,0 +1,59 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M44E1BGTYPBBGEMSQ29EKKGK",
+  "session_id": "0db4eecc-e2d3-4aa2-a207-c7ab54c45255",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-04T21:45:05.001847Z",
+  "branch": "feature/sportsball",
+  "checkpoints_count": 1,
+  "save_step_count": 1,
+  "files_touched": [
+    "plugins/sportsball/hooks/register.test.ts",
+    "plugins/sportsball/hooks/register.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "de4482abe3aa",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 2,
+    "cache_creation_tokens": 29708,
+    "cache_read_tokens": 8368,
+    "output_tokens": 4,
+    "api_call_count": 1
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-10-04T21:45:04.996257Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 9,
+    "human_removed": 3,
+    "total_committed": 0,
+    "total_lines_changed": 12,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 94,
+      "user_lines_removed": 12,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".private-journal/2026-10-03/20-49-35-000000-9c66857e.md": 15,
+        ".private-journal/2026-10-04/13-59-45-000000-2fe13fc4.md": 8,
+        "plugins/sportsball/hooks/register.test.ts": 61,
+        "plugins/sportsball/hooks/register.tsx": 10
+      },
+      "user_removed_per_file": {
+        "plugins/sportsball/hooks/register.test.ts": 7,
+        "plugins/sportsball/hooks/register.tsx": 5
+      }
+    }
+  ]
+}
