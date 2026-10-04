@@ -1,0 +1,9 @@
+2
+
+---
+
+How hard would it be to add toast notifications to this mod?  Ideally, toast would appear whenever there is a change in the game status (e.g. a quarter starts or ends, or it's full-time)
+
+---
+
+Yep. let's go.
