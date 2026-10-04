@@ -1,0 +1,39 @@
+Update the PR and trail titles & descriptions to reflect the new name.
+
+---
+
+<task-notification>
+<task-id>bshmx45o2</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-rod-build-rod-claude-mods/e9fc756c-1a0f-480c-8f21-5b1834db1dff/tasks/bshmx45o2.output</output-file>
+<status>failed</status>
+<summary>Background command "T="Add pro-limits mod" &amp;&amp; B="Adds the pro-limits mod: green-to-red gauges above the prompt for the 5-hour and weekly Claude usage limits, each with percent used and time until reset. Toasts fire as each window passes 20%, 40%, 60%, 80%, 90% and 95%, and the percentage becomes three skulls at 100%. Toggle with /pro-limits.
+
+Renamed from usage-bars during development; the branch keeps its original name." &amp;&amp; entire trail update --title "$T" --body "$B" 2&gt;&amp;1 | tail -3
+cat &gt; /tmp/x 2&gt;/dev/null; PRB=$(cat &lt;&lt;'EOF'
+&lt;!-- entire-trail-link-start --&gt;
+https://entire.io/gh/rodbegbie/rod-claude-mods/trails/2
+&lt;!-- entire-trail-link-end --&gt;
+
+Adds the `pro-limits` mod: green-to-red gauges above the prompt for the 5-hour and weekly Claude usage limits, each with percent used and time until reset.
+
+- Toasts fire as each window passes 20%, 40%, 60%, 80%, 90% and 95%.
+- At 100% the percentage becomes three skulls.
+- Toggle with `/pro-limits`.
+
+Renamed from `usage-bars` during development; the branch keeps its original name.
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+&lt;!-- entire-shadow-pr --&gt;
+EOF
+); gh pr edit 2 --title "$T" --body "$PRB" 2&gt;&amp;1 | tail -2; gh pr view 2 --json title,isDraft,body --jq '.title, .isDraft' ; NO_COLOR=1 entire trail show 2&gt;&amp;1 | sed -n '1p;/Description/,$p'" failed with exit code 144</summary>
+</task-notification>
+
+---
+
+So I can visualise the colours, can you spit out for me an example of the bar at 10 percentage point increments?
+
+---
+
+That was grand. Thanks.  Looks good to me.  OK, let's also change the easter egg to two skulls, since they're pretty wide.
