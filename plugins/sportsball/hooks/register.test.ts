@@ -772,7 +772,7 @@ const footballMatch = {
   status_text: '2nd half',
   time: '2026-10-04T20:30:00+00:00',
   competition: 'ARG Primera Nacional',
-  url: '/football/match/atletico-rafaela-vs-atletico-atlanta/',
+  url: '/football/match/atletico-rafaela-vs-atletico-atlanta/dn1m1ghlp05zmoe/',
 }
 
 test('follow-team searches basketball then football', async ($, on) => {
@@ -845,4 +845,69 @@ test('football period changes and full time toast with the football emoji', asyn
     '⚽ Half time: Atletico Rafaela 1 - 2 Atletico Atlanta',
     '⚽ Full time: Atletico Rafaela 1 - 3 Atletico Atlanta',
   ])
+})
+
+const MATCH_ROUTE = '/api/v1/match/'
+const detail = (live_minute: unknown) => ({ body: { sport: 'football', match: { ...footballMatch, live_minute } } })
+const footballHarness = (on: any, routes: Record<string, Route>) => {
+  routes['slug=atletico-atlanta'] = { body: schedule(footballMatch) }
+  return harness(on, routes, { followed: [{ sport: 'football', ...atlanta }] })
+}
+
+test('a live football game shows its minute next to the status', async ($, on) => {
+  const h = footballHarness(on, { [MATCH_ROUTE]: detail('84') })
+
+  await start($)
+
+  expect(h.urls.find(url => url.includes(MATCH_ROUTE))).toContain('/api/v1/match/?sport=football&slug=atletico-rafaela-vs-atletico-atlanta')
+  expect(flatText(gameRow(await mountBand($)))).toBe("⚽ Atletico Rafaela 1 - 2 Atletico Atlanta · 2nd half 84' · ARG Primera Nacional")
+})
+
+test('the minute follows the latest poll', async ($, on) => {
+  const routes: Record<string, Route> = { [MATCH_ROUTE]: detail('84') }
+  footballHarness(on, routes)
+  await start($)
+  routes[MATCH_ROUTE] = detail('85')
+
+  await start($)
+
+  expect(flatText(gameRow(await mountBand($)))).toContain("2nd half 85'")
+})
+
+for (const [label, minute] of [['null', null], ['empty', ''], ['missing', undefined]] as const) {
+  test(`a ${label} live_minute shows just the status`, async ($, on) => {
+    footballHarness(on, { [MATCH_ROUTE]: detail(minute) })
+
+    await start($)
+
+    expect(flatText(gameRow(await mountBand($)))).toContain('· 2nd half ·')
+  })
+}
+
+test('a failed minute lookup still shows the score and is not a stale reading', async ($, on) => {
+  footballHarness(on, { [MATCH_ROUTE]: { status: 500, body: 'oops' } })
+
+  await start($)
+
+  expect(flatText(gameRow(await mountBand($)))).toContain('· 2nd half ·')
+  expect((await readingOf($)).isStale).toBe(false)
+})
+
+test('basketball makes no match-detail request', async ($, on) => {
+  const h = harness(on, { [TEAM_ROUTE]: { body: schedule(liveMatch) }, [MATCH_ROUTE]: detail('9') }, followingValkyries)
+
+  await start($)
+
+  expect(h.urls.some(url => url.includes(MATCH_ROUTE))).toBe(false)
+})
+
+test('a changing minute alone never toasts', async ($, on) => {
+  const routes: Record<string, Route> = { [MATCH_ROUTE]: detail('84') }
+  const h = footballHarness(on, routes)
+  await start($)
+  routes[MATCH_ROUTE] = detail('85')
+
+  await start($)
+
+  expect(h.toasts).toEqual([])
 })

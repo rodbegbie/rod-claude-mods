@@ -81,6 +81,10 @@ A toast appears when the game moves to a new period (for example
 The first reading after a load is silent, so starting Claude mid-game
 doesn't toast. `/sportsball` off mutes toasts without losing track.
 
+Football games also show the match minute next to the status, for
+example `2nd half 84'`. It comes from a second request per poll, so a
+failed lookup just leaves the minute off.
+
 It polls every 30 seconds while a game is live and every 5 minutes
 otherwise. If a poll fails, the last score stays on screen, dimmed, for
 up to 10 minutes. Basketball and football are supported.

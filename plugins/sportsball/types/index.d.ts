@@ -11,6 +11,7 @@ export type LiveGame = {
   homeLogo: string
   awayLogo: string
   statusText: string
+  minute: string
   competition: string
 }
 

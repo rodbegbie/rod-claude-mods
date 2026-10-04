@@ -139,6 +139,12 @@ them, so a test must stub every event the mod touches or it fails with
   the request uses the maximum `limit=50`: a smaller limit returns only
   far-future fixtures and hides a live game for a team with a long
   season (football).
+- `live_minute` exists only on `/api/v1/match/`, never in the team
+  schedule, and is `null` for basketball, so only sports flagged in
+  `HAS_LIVE_MINUTE` pay for the extra request. The match slug is the
+  third segment of the match `url`; football URLs carry a trailing id
+  that must not be sent. A failed lookup yields no minute and never
+  fails the poll.
 - `/follow-team` searches every sport in `SPORTS` (one request each, in
   order) and fails the whole lookup if any request fails. A sport needs
   an entry in `SPORTS` and in `SPORT_EMOJI`, and a `Sport` member in

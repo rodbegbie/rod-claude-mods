@@ -9,6 +9,7 @@ const colours = atom({ plugin: 'sportsball', key: 'colours' } as const, {})
 
 const SEARCH_URL = 'https://sportscore.com/api/v1/search/'
 const TEAM_URL = 'https://sportscore.com/api/v1/team/'
+const MATCH_URL = 'https://sportscore.com/api/v1/match/'
 const MIN_NAME_LENGTH = 2
 const LIVE_POLL_MS = 30_000
 const IDLE_POLL_MS = 300_000
@@ -25,6 +26,7 @@ const SEPARATOR = ' · '
 const SPORTSCORE_URL = 'https://sportscore.com'
 const SPORTS: Sport[] = ['basketball', 'football']
 const SPORT_EMOJI: Record<Sport, string> = { basketball: '🏀', football: '⚽' }
+const HAS_LIVE_MINUTE: Record<Sport, boolean> = { basketball: false, football: true }
 
 let pendingPoll: { cancel: () => void } | null = null
 let helperUsable: boolean | null = null
@@ -221,11 +223,25 @@ function toLiveGame(m: Record<string, unknown>): LiveGame {
     homeLogo: text(m.home_logo),
     awayLogo: text(m.away_logo),
     statusText: text(m.status_text),
+    minute: '',
     competition: text(m.competition),
   }
 }
 
 type Games = { live: LiveGame | null; finished: LiveGame[] }
+
+async function fetchLiveMinute($: EngineInterface, sport: Sport, url: string): Promise<string> {
+  const slug = url.split('/').filter(Boolean)[2]
+  if (!slug) return ''
+  try {
+    const response = await $.http.fetch(`${MATCH_URL}?sport=${sport}&slug=${encodeURIComponent(slug)}`)
+    if (!response.ok) return ''
+    const minute = (JSON.parse(response.text) as { match?: { live_minute?: unknown } }).match?.live_minute
+    return typeof minute === 'string' || typeof minute === 'number' ? String(minute).trim() : ''
+  } catch {
+    return ''
+  }
+}
 
 async function fetchGames($: EngineInterface, team: Followed): Promise<Games | 'error'> {
   try {
@@ -235,8 +251,10 @@ async function fetchGames($: EngineInterface, team: Followed): Promise<Games | '
     if (!Array.isArray(matches)) return 'error'
     const live = matches.find(m => m?.status === 'live')
 
+    const minute = live && HAS_LIVE_MINUTE[team.sport] ? await fetchLiveMinute($, team.sport, text(live.url)) : ''
+
     return {
-      live: live ? toLiveGame(live) : null,
+      live: live ? { ...toLiveGame(live), minute } : null,
       finished: matches.filter(m => m?.status === 'finished').map(toLiveGame),
     }
   } catch {
@@ -422,6 +440,7 @@ export const register: Register = on => {
     const { game, followedSide } = data
     const width = Math.max(MIN_BAND_COLUMNS, e.props.bodyColumns - COLLAPSE_CONTROL_COLUMNS)
 
+    const status = game.minute === '' ? game.statusText : `${game.statusText} ${game.minute}'`
     const gameText = (
       <Text wrap="truncate-end" dimColor={data.isStale}>
         {SPORT_EMOJI[data.sport]}{' '}
@@ -433,7 +452,7 @@ export const register: Register = on => {
         {' '}
         <Text color={known[game.awayLogo]}>{game.away}</Text>
         {SEPARATOR}
-        {game.statusText}
+        {status}
         {SEPARATOR}
         {shortCompetition(game.competition)}
       </Text>
