@@ -1,0 +1,37 @@
+{
+  "id": "trail-security",
+  "display_name": "Security Review",
+  "enabled": true,
+  "scope": "trail",
+  "runtime": {
+    "kind": "prompt_runner",
+    "agent": "claude",
+    "timeout_ms": 300000,
+    "sandbox": {
+      "base_template": "claude",
+      "repo_token": "read"
+    }
+  },
+  "automation": {
+    "kind": "trail_prompt"
+  },
+  "prompt": {
+    "template": "You are a security risk evaluator. Analyze the changes on branch \"{{branch}}\" compared to \"{{base_branch}}\".\n\nThis repo distributes Claude Code plugins that users install and run locally. Hooks, commands and scripts execute with the user's full privileges and can see session content (prompts, transcripts, token/context data), so the main threats are supply-chain and local-execution risks, not web vulnerabilities.\n\nRun `git diff origin/{{base_branch}}...HEAD` to see the changes, then score **security risk** from 0 to 100 (review adversarially; higher = more suspicious or insecure). Check for:\n- Command injection: unquoted or interpolated shell variables, `eval`, building commands from transcript, session, or file-derived data.\n- Network access or exfiltration of prompts, transcripts, environment variables, or credentials; downloaded-and-executed code; `curl | sh` patterns.\n- Writes or deletes outside the plugin's own state directory; insecure temp files; overly broad file reads (home dir, dotfiles, secrets).\n- Terminal escape injection: emitting untrusted text into the terminal without stripping control/ANSI sequences.\n- Marketplace/manifest tampering: marketplace.json `source` entries pointing to unexpected external repos or paths, unpinned remote dependencies, hooks or permissions added that a mod's description doesn't justify.\n- Committed secrets or tokens in config, README examples, or scripts.\n\nBands: 0-10 = docs or inert metadata only; 11-30 = local, read-only logic with no shell/network; 31-60 = shell execution or file writes with plausible but unconfirmed input-handling gaps; 61-100 = injection, exfiltration, remote code fetch, or unjustified external marketplace sources.\n\nOutput ONLY this JSON object as the very last line of your response:\n\n{\"value\": <number 0-100>, \"rationale\": \"<1-2 sentence explanation>\"}"
+  },
+  "select": {
+    "trigger_types": [
+      "api",
+      "push"
+    ]
+  },
+  "output": {
+    "adapter": "last_json_line",
+    "result_type": "trail_monitor",
+    "trail_monitor": {
+      "key": "security",
+      "label": "Security",
+      "value_type": "percent",
+      "polarity": "lower_is_better"
+    }
+  }
+}

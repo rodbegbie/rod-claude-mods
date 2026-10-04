@@ -1,0 +1,37 @@
+{
+  "id": "trail-risk",
+  "display_name": "Risk Eval",
+  "enabled": true,
+  "scope": "trail",
+  "runtime": {
+    "kind": "prompt_runner",
+    "agent": "claude",
+    "timeout_ms": 300000,
+    "sandbox": {
+      "base_template": "claude",
+      "repo_token": "read"
+    }
+  },
+  "automation": {
+    "kind": "trail_prompt"
+  },
+  "prompt": {
+    "template": "You are a risk evaluator. Analyze the changes on branch \"{{branch}}\" compared to \"{{base_branch}}\".\n\nThis repo is a Claude Code plugin marketplace (small mods under `plugins/`, registered in `.claude-plugin/marketplace.json`). There is no server, database, or production deployment; damage comes from plugins that fail to install/load, break a user's Claude Code session or terminal, or run hooks with the user's privileges.\n\nRun `git diff origin/{{base_branch}}...HEAD` to see the changes, then score **risk** from 0 to 100 (higher = more potential damage if something is wrong). Weigh:\n- Marketplace/manifest breakage: edits to `.claude-plugin/marketplace.json` or any `plugin.json` that could make the whole marketplace or an installed mod fail validation (affects every mod, so weight higher).\n- Hooks and scripts that run automatically (session start, after each turn): crashes, slowness, or noisy output that degrade every prompt; corrupted terminal rendering.\n- Privilege/side effects: shell execution, file writes outside the plugin's state, network access, reading session/transcript content.\n- Breaking changes to user-facing commands (e.g. `/context-bar` toggle), default on/off state, or install paths documented in the README.\n- Blast radius: new mod isolated in its own folder is low; changes to shared marketplace config are higher.\n\nBands: 0-15 = docs/README or isolated new-mod metadata; 16-40 = small isolated logic change in one mod with a clear fallback; 41-70 = changes to automatic hooks or rendering, or to marketplace.json; 71-100 = unsafe shell/network behaviour, or changes likely to break installation or every session.\n\nOutput ONLY this JSON object as the very last line of your response:\n\n{\"value\": <number 0-100>, \"rationale\": \"<1-2 sentence explanation>\"}"
+  },
+  "select": {
+    "trigger_types": [
+      "api",
+      "push"
+    ]
+  },
+  "output": {
+    "adapter": "last_json_line",
+    "result_type": "trail_monitor",
+    "trail_monitor": {
+      "key": "risk",
+      "label": "Risk",
+      "value_type": "percent",
+      "polarity": "lower_is_better"
+    }
+  }
+}
