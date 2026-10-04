@@ -1,0 +1,1 @@
+It looks like football games have a "live_minute" field on the match details.  Can you include that next to the status in the display?
