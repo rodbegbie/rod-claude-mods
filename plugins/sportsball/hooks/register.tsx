@@ -19,6 +19,8 @@ const HEX_COLOUR = /^#[0-9a-f]{6}$/
 const COLLAPSE_CONTROL_COLUMNS = 4
 const MIN_BAND_COLUMNS = 10
 const SEPARATOR = ' · '
+const SPORTSCORE_URL = 'https://sportscore.com'
+const SPORT_EMOJI: Record<Followed['sport'], string> = { basketball: '🏀' }
 
 let pendingPoll: { cancel: () => void } | null = null
 let helperUsable: boolean | null = null
@@ -223,11 +225,11 @@ async function fetchLiveGame($: EngineInterface, team: Followed): Promise<LiveGa
 function nextReading(result: LiveGame | null | 'error', team: Followed, previous: Reading | null, now: number): Reading | null {
   if (result === 'error') {
     if (!previous?.game) return previous
-    if (now - previous.at > STALE_MS) return { game: null, followedSide: null, isStale: false, at: now }
+    if (now - previous.at > STALE_MS) return { game: null, sport: team.sport, followedSide: null, isStale: false, at: now }
     return { ...previous, isStale: true }
   }
   const followedSide = result?.home === team.name ? 'home' : result?.away === team.name ? 'away' : null
-  return { game: result, followedSide, isStale: false, at: now }
+  return { game: result, sport: team.sport, followedSide, isStale: false, at: now }
 }
 
 function shortCompetition(name: string): string {
@@ -374,27 +376,33 @@ export const register: Register = on => {
     const data = await read($, reading)
     if (e.props.hasSurvey || !data?.game || !(await read($, isOn))) return next(e)
     const known = await read($, colours)
-    const { Box, Text } = $.ui.resolve(e)
+    const { Box, Text, Link } = $.ui.resolve(e)
     const { game, followedSide } = data
     const width = Math.max(MIN_BAND_COLUMNS, e.props.bodyColumns - COLLAPSE_CONTROL_COLUMNS)
 
     return (
-      <Box width={width}>
-        <Text wrap="truncate-end" dimColor={data.isStale}>
-          <Text color={known[game.homeLogo]}>{game.home}</Text>
-          {' '}
-          <Text bold={followedSide === 'home'}>{game.homeScore}</Text>
-          {' - '}
-          <Text bold={followedSide === 'away'}>{game.awayScore}</Text>
-          {' '}
-          <Text color={known[game.awayLogo]}>{game.away}</Text>
-          {SEPARATOR}
-          {game.statusText}
-          {SEPARATOR}
-          {shortCompetition(game.competition)}
-          {SEPARATOR}
-          <Text dimColor>via SportScore</Text>
-        </Text>
+      <Box flexDirection="column">
+        <Box width={width}>
+          <Text wrap="truncate-end" dimColor={data.isStale}>
+            {SPORT_EMOJI[data.sport]}{' '}
+            <Text color={known[game.homeLogo]}>{game.home}</Text>
+            {' '}
+            <Text bold={followedSide === 'home'}>{game.homeScore}</Text>
+            {' - '}
+            <Text bold={followedSide === 'away'}>{game.awayScore}</Text>
+            {' '}
+            <Text color={known[game.awayLogo]}>{game.away}</Text>
+            {SEPARATOR}
+            {game.statusText}
+            {SEPARATOR}
+            {shortCompetition(game.competition)}
+          </Text>
+        </Box>
+        <Box width={width} justifyContent="flex-end">
+          <Text wrap="truncate-end" dimColor>
+            Powered by <Link href={SPORTSCORE_URL}>SportScore</Link>
+          </Text>
+        </Box>
       </Box>
     )
   })

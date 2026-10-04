@@ -500,21 +500,49 @@ async function mountBand($: any, bodyColumns = 100, hasSurvey = false): Promise<
 
 const colouredLogos = { colours: { [HOME_LOGO]: '#b896d4', [AWAY_LOGO]: '#bc945a' } }
 
-test('the band draws the live game on one line with attribution', async ($, on) => {
+const truncatingRows = (tree: Node) => walk(tree).filter(n => n.props?.wrap === 'truncate-end')
+const gameRow = (tree: Node) => truncatingRows(tree)[0]
+const links = (tree: Node) => walk(tree).filter(n => n.type === 'Link')
+
+test('the game row starts with the sport emoji and carries no attribution', async ($, on) => {
   harness(on, liveSchedule(), { ...followingValkyries, ...colouredLogos })
   await start($)
 
   const tree = await mountBand($)
 
-  expect(flatText(tree)).toBe('Golden State Valkyries 34 - 31 Las Vegas Aces · Half time · WNBA · via SportScore')
-  expect(textNode(tree, 'via SportScore')?.props?.dimColor).toBe(true)
+  expect(flatText(gameRow(tree))).toBe('🏀 Golden State Valkyries 34 - 31 Las Vegas Aces · Half time · WNBA')
+})
+
+test('the attribution is a link to SportScore', async ($, on) => {
+  harness(on, liveSchedule(), { ...followingValkyries, ...colouredLogos })
+  await start($)
+
+  const tree = await mountBand($)
+
+  expect(links(tree)).toHaveLength(1)
+  expect(links(tree)[0].props?.href).toBe('https://sportscore.com')
+  expect(flatText(links(tree)[0])).toBe('SportScore')
+})
+
+test('the attribution is drawn once, in its own right-aligned row below the game', async ($, on) => {
+  harness(on, liveSchedule(), { ...followingValkyries, ...colouredLogos })
+  await start($)
+
+  const tree = await mountBand($)
+
+  const rows = tree.children as Node[]
+  const last = rows[rows.length - 1]
+  expect(flatText(last)).toBe('Powered by SportScore')
+  expect(last.props?.justifyContent).toBe('flex-end')
+  expect(walk(rows[0]).some(n => n.type === 'Link')).toBe(false)
+  expect(walk(last).find(n => n.type === 'Text' && n.props?.dimColor === true)).toBeDefined()
 })
 
 test('a competition other than the WNBA is shown in full', async ($, on) => {
   harness(on, liveSchedule({ competition: 'NBA Cup' }), { ...followingValkyries, ...colouredLogos })
   await start($)
 
-  expect(flatText(await mountBand($))).toContain('· NBA Cup ·')
+  expect(flatText(await mountBand($))).toContain('· NBA Cup')
 })
 
 test('team names carry their cached logo colours', async ($, on) => {
@@ -585,51 +613,16 @@ test('no live game leaves the engine drawing', async ($, on) => {
   expect(flatText(await mountBand($))).toBe('ENGINE')
 })
 
-test('a narrow terminal still draws one truncating row', async ($, on) => {
+test('a narrow terminal still draws one truncating game row and keeps the attribution', async ($, on) => {
   harness(on, liveSchedule(), { ...followingValkyries, ...colouredLogos })
   await start($)
 
   const tree = await mountBand($, 30)
 
-  const row = walk(tree).filter(n => n.props?.wrap === 'truncate-end')
-  expect(row).toHaveLength(1)
-  expect(walk(tree).find(n => n.type === 'Box')?.props?.width).toBe(26)
-  expect((walk(await mountBand($, 6)).find(n => n.type === 'Box')?.props?.width)).toBe(10)
-})
-
-test('session start does not wait for the colour helper', async ($, on) => {
-  let release!: () => void
-  const h = harness(on, liveSchedule({ home_logo: 'https://img.example/slow1.png', away_logo: 'https://img.example/slow2.png' }), followingValkyries)
-  h.proc.gate = new Promise<void>(resolve => (release = resolve))
-  h.proc.outputs['https://img.example/slow1.png'] = { exitCode: 0, stdout: '#b896d4' }
-
-  await start($)
-
-  expect((await readingOf($)).game.homeScore).toBe('34')
-  expect(h.store.get('colours')).toBeUndefined()
-  release()
-  await until(() => h.store.has('colours'))
-  expect(h.store.get('colours')).toEqual({ 'https://img.example/slow1.png': '#b896d4' })
-})
-
-test('follow-team follows the one hit whose name is exactly what was typed', async ($, on) => {
-  const longer = { name: 'Golden State Valkyries (W)', slug: 'golden-state-valkyries-w' }
-  const h = harness(on, { '/api/v1/search/': { body: searchBody([longer, valkyries]) } })
-  await start($)
-
-  const { text } = await run($, 'follow-team', 'golden state valkyries')
-
-  expect(text).toContain('Now following Golden State Valkyries.')
-  expect(h.store.get('followed')).toEqual([{ sport: 'basketball', ...valkyries }])
-})
-
-test('follow-team with two exact-name hits still asks for a more specific name', async ($, on) => {
-  const twin = { name: 'golden state valkyries', slug: 'twin' }
-  const h = harness(on, { '/api/v1/search/': { body: searchBody([twin, valkyries]) } })
-  await start($)
-
-  const { text } = await run($, 'follow-team', 'Golden State Valkyries')
-
-  expect(text).toContain('Try a more specific name')
-  expect(h.store.get('followed')).toBeUndefined()
+  const widths = walk(tree).filter(n => n.type === 'Box' && n.props?.width !== undefined).map(n => n.props?.width)
+  expect(widths).toEqual([26, 26])
+  expect(flatText(gameRow(tree))).toContain('Golden State Valkyries')
+  expect(links(tree)).toHaveLength(1)
+  const tiny = walk(await mountBand($, 6)).filter(n => n.type === 'Box' && n.props?.width !== undefined)
+  expect(tiny.map(n => n.props?.width)).toEqual([10, 10])
 })

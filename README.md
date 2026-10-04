@@ -57,9 +57,12 @@ honest.
 
 ### sportsball
 
-Follows one team and draws its live game above the prompt: both team
-names, the score, the game status and the competition, on a single line.
-The band is empty when the team has no live game.
+Follows one team and draws its live game above the prompt: a sport
+emoji, both team names, the score, the game status and the competition,
+on a single line. A "Powered by SportScore" credit, linking to
+sportscore.com, sits right-aligned on a row of its own underneath, and
+appears once however many teams are shown. The band is empty when the
+team has no live game.
 
 <!-- screenshot placeholder -->
 
@@ -75,7 +78,8 @@ otherwise. If a poll fails, the last score stays on screen, dimmed, for
 up to 10 minutes. Basketball only for now.
 
 Scores come from the [SportScore](https://sportscore.com) public API,
-which asks for attribution, hence the "via SportScore" on the band.
+which asks for a visible "Powered by SportScore" link, hence the credit
+row. Terminals without hyperlink support show the URL next to the name.
 
 Team names are coloured from their logos. To do that the mod runs a
 short Python 3 script (standard library only) on your machine, once per
