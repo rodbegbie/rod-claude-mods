@@ -135,6 +135,14 @@ them, so a test must stub every event the mod touches or it fails with
   says. There is no quarter or clock field, only `status_text`.
 - The mod polls `/api/v1/team/`, not `/api/v1/fixtures/`, because
   fixtures covers one UTC day and drops a game that crosses midnight.
+  The team endpoint returns matches newest-first, up to about 30, so
+  the request uses the maximum `limit=50`: a smaller limit returns only
+  far-future fixtures and hides a live game for a team with a long
+  season (football).
+- `/follow-team` searches every sport in `SPORTS` (one request each, in
+  order) and fails the whole lookup if any request fails. A sport needs
+  an entry in `SPORTS` and in `SPORT_EMOJI`, and a `Sport` member in
+  `types/index.d.ts`.
 - Logo colours come from `LOGO_COLOUR_SCRIPT`, a Python script held as a
   `String.raw` constant in `register.tsx`. The pytest in
   `plugins/sportsball/tests` extracts it from there, so there is one

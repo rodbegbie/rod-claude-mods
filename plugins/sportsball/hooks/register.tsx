@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Followed, LiveGame, Reading } from '../types'
+import type { Followed, LiveGame, Reading, Sport } from '../types'
 
 const isOn = atom({ plugin: 'sportsball', key: 'isOn' } as const, true)
 const reading = atom({ plugin: 'sportsball', key: 'reading' } as const, null)
@@ -23,7 +23,8 @@ const CREDIT_COLUMNS = 22
 const MIN_GAME_COLUMNS = 20
 const SEPARATOR = ' · '
 const SPORTSCORE_URL = 'https://sportscore.com'
-const SPORT_EMOJI: Record<Followed['sport'], string> = { basketball: '🏀' }
+const SPORTS: Sport[] = ['basketball', 'football']
+const SPORT_EMOJI: Record<Sport, string> = { basketball: '🏀', football: '⚽' }
 
 let pendingPoll: { cancel: () => void } | null = null
 let helperUsable: boolean | null = null
@@ -168,28 +169,39 @@ if __name__ == "__main__":
     main()
 `
 
-type TeamHit = { slug: string; name: string }
+type TeamHit = { sport: Sport; slug: string; name: string }
 
-function isTeamHit(value: unknown): value is TeamHit {
-  const hit = value as TeamHit | null
+function isNamed(value: unknown): value is { slug: string; name: string } {
+  const hit = value as { slug?: unknown; name?: unknown } | null
   return typeof hit?.slug === 'string' && typeof hit?.name === 'string'
 }
 
-async function searchTeams($: EngineInterface, name: string): Promise<TeamHit[] | null> {
+async function searchSport($: EngineInterface, name: string, sport: Sport): Promise<TeamHit[] | null> {
   try {
-    const response = await $.http.fetch(`${SEARCH_URL}?q=${encodeURIComponent(name)}&sport=basketball`)
+    const response = await $.http.fetch(`${SEARCH_URL}?q=${encodeURIComponent(name)}&sport=${sport}`)
     if (!response.ok) return null
     const teams = (JSON.parse(response.text) as { teams?: unknown }).teams
-    return Array.isArray(teams) ? teams.filter(isTeamHit) : null
+    return Array.isArray(teams) ? teams.filter(isNamed).map(team => ({ sport, slug: team.slug, name: team.name })) : null
   } catch {
     return null
   }
 }
 
+async function searchTeams($: EngineInterface, name: string): Promise<TeamHit[] | null> {
+  const hits: TeamHit[] = []
+  for (const sport of SPORTS) {
+    const found = await searchSport($, name, sport)
+    if (found === null) return null
+    hits.push(...found)
+  }
+
+  return hits
+}
+
 async function followedTeams($: EngineInterface): Promise<Followed[]> {
   const stored = await $.store.get('followed')
   if (!Array.isArray(stored)) return []
-  return stored.filter(item => isTeamHit(item) && (item as Followed).sport === 'basketball')
+  return stored.filter(item => isNamed(item) && SPORTS.includes((item as Followed).sport))
 }
 
 const text = (value: unknown) => (typeof value === 'string' ? value : '')
@@ -217,7 +229,7 @@ type Games = { live: LiveGame | null; finished: LiveGame[] }
 
 async function fetchGames($: EngineInterface, team: Followed): Promise<Games | 'error'> {
   try {
-    const response = await $.http.fetch(`${TEAM_URL}?sport=${team.sport}&slug=${encodeURIComponent(team.slug)}&limit=10`)
+    const response = await $.http.fetch(`${TEAM_URL}?sport=${team.sport}&slug=${encodeURIComponent(team.slug)}&limit=50`)
     if (!response.ok) return 'error'
     const matches = (JSON.parse(response.text) as { matches?: unknown }).matches
     if (!Array.isArray(matches)) return 'error'
@@ -232,11 +244,11 @@ async function fetchGames($: EngineInterface, team: Followed): Promise<Games | '
   }
 }
 
-function scoreline(sport: Followed['sport'], label: string, game: LiveGame): string {
+function scoreline(sport: Sport, label: string, game: LiveGame): string {
   return `${SPORT_EMOJI[sport]} ${label}: ${game.home} ${game.homeScore} - ${game.awayScore} ${game.away}`
 }
 
-function announcement(sport: Followed['sport'], previous: Reading | null, games: Games): string | null {
+function announcement(sport: Sport, previous: Reading | null, games: Games): string | null {
   const before = previous?.game
   if (!before) return null
   if (games.live?.key === before.key) {
@@ -374,10 +386,10 @@ export const register: Register = on => {
     const exact = hits.filter(h => h.name.toLowerCase() === name.toLowerCase())
     const chosen = hits.length === 1 ? hits : exact.length === 1 ? exact : null
     if (chosen === null) {
-      return { text: `Several teams match "${name}": ${hits.map(h => h.name).join(', ')}. Try a more specific name.` }
+      return { text: `Several teams match "${name}": ${hits.map(h => `${SPORT_EMOJI[h.sport]} ${h.name}`).join(', ')}. Try a more specific name.` }
     }
     const [hit] = chosen
-    await $.store.set('followed', [{ sport: 'basketball', slug: hit.slug, name: hit.name }])
+    await $.store.set('followed', [{ sport: hit.sport, slug: hit.slug, name: hit.name }])
     await poll($)
 
     return { text: `Now following ${hit.name}.` }

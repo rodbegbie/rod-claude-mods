@@ -13,6 +13,11 @@ const searchBody = (teams: object[]) => ({
   players: [],
 })
 
+const searchRoutes = (basketball: object[], football: object[] = []): Record<string, Route> => ({
+  '&sport=basketball': { body: searchBody(basketball) },
+  '&sport=football': { body: searchBody(football) },
+})
+
 type Route = { status?: number; body: unknown; gate?: Promise<void>; onFetch?: () => void }
 
 let states: Record<string, any> = {}
@@ -98,7 +103,7 @@ const start = ($: any) => $.session.start({ source: 'startup', cwd: '/tmp' })
 const run = ($: any, command: string, args = '') => $.command.run({ command, args })
 
 test('follow-team with several hits lists them and follows nothing', async ($, on) => {
-  const h = harness(on, { '/api/v1/search/': { body: searchBody([valkyries, bluefire]) } })
+  const h = harness(on, { ...searchRoutes([valkyries, bluefire]) })
   await start($)
 
   const { text } = await run($, 'follow-team', 'valkyries')
@@ -109,7 +114,7 @@ test('follow-team with several hits lists them and follows nothing', async ($, o
 })
 
 test('follow-team with one hit follows it and stores the team', async ($, on) => {
-  const h = harness(on, { '/api/v1/search/': { body: searchBody([valkyries]) } })
+  const h = harness(on, { ...searchRoutes([valkyries]) })
   await start($)
 
   const { text } = await run($, 'follow-team', 'golden state valkyries')
@@ -121,7 +126,7 @@ test('follow-team with one hit follows it and stores the team', async ($, on) =>
 })
 
 test('follow-team encodes ampersands in the search', async ($, on) => {
-  const h = harness(on, { '/api/v1/search/': { body: searchBody([]) } })
+  const h = harness(on, { ...searchRoutes([]) })
   await start($)
 
   await run($, 'follow-team', 'ben & jerry')
@@ -142,7 +147,7 @@ for (const args of ['', ' ', 'a']) {
 }
 
 test('follow-team with no hits says nothing matched', async ($, on) => {
-  const h = harness(on, { '/api/v1/search/': { body: searchBody([]) } })
+  const h = harness(on, { ...searchRoutes([]) })
   await start($)
 
   const { text } = await run($, 'follow-team', 'nonsense')
@@ -152,7 +157,7 @@ test('follow-team with no hits says nothing matched', async ($, on) => {
 })
 
 test('follow-team reports a failed lookup and stores nothing', async ($, on) => {
-  const h = harness(on, { '/api/v1/search/': { status: 500, body: 'oops' } })
+  const h = harness(on, { '&sport=basketball': { status: 500, body: 'oops' }, '&sport=football': { status: 500, body: 'oops' } })
   await start($)
 
   const { text } = await run($, 'follow-team', 'valkyries')
@@ -164,7 +169,7 @@ test('follow-team reports a failed lookup and stores nothing', async ($, on) => 
 test('follow-team replaces the team already followed', async ($, on) => {
   const h = harness(
     on,
-    { '/api/v1/search/': { body: searchBody([bluefire]) } },
+    { ...searchRoutes([bluefire]) },
     { followed: [{ sport: 'basketball', ...valkyries }] },
   )
   await start($)
@@ -256,7 +261,7 @@ test('a live game is read, flagged for the followed side, and polled every 30 se
   expect(reading.isStale).toBe(false)
   expect(h.delays).toEqual([30_000])
   expect(h.urls[0]).toContain('/api/v1/team/')
-  expect(h.urls[0]).toContain('limit=10')
+  expect(h.urls[0]).toContain('limit=50')
 })
 
 test('no live game clears the reading and polls every 5 minutes', async ($, on) => {
@@ -348,7 +353,7 @@ test('a poll that returns after switching teams is discarded', async ($, on) => 
     {
       [TEAM_ROUTE]: { body: schedule(liveMatch), gate, onFetch: entered },
       'slug=bluefire-valkyries-w': { body: schedule(finishedMatch) },
-      '/api/v1/search/': { body: searchBody([bluefire]) },
+      ...searchRoutes([bluefire]),
     },
     followingValkyries,
   )
@@ -744,7 +749,7 @@ test('switching to a team in a different game does not toast', async ($, on) => 
   const routes: Record<string, Route> = {
     [TEAM_ROUTE]: { body: schedule(inPlay('Half time')) },
     'slug=bluefire-valkyries-w': { body: schedule(other) },
-    '/api/v1/search/': { body: searchBody([bluefire]) },
+    ...searchRoutes([bluefire]),
   }
   const h = harness(on, routes, { ...followingValkyries, ...colouredLogos })
   await start($)
@@ -752,4 +757,92 @@ test('switching to a team in a different game does not toast', async ($, on) => 
   await run($, 'follow-team', 'bluefire')
 
   expect(h.toasts).toEqual([])
+})
+
+const atlanta = { name: 'Atletico Atlanta', slug: 'atletico-atlanta' }
+const tigre = { name: 'Club Atletico Tigre', slug: 'club-atletico-tigre' }
+const footballMatch = {
+  home: 'Atletico Rafaela',
+  away: 'Atletico Atlanta',
+  home_logo: 'https://img.example/rafaela.png',
+  away_logo: 'https://img.example/atlanta.png',
+  home_score: '1',
+  away_score: '2',
+  status: 'live',
+  status_text: '2nd half',
+  time: '2026-10-04T20:30:00+00:00',
+  competition: 'ARG Primera Nacional',
+  url: '/football/match/atletico-rafaela-vs-atletico-atlanta/',
+}
+
+test('follow-team searches basketball then football', async ($, on) => {
+  const h = harness(on, searchRoutes([], [atlanta]))
+  await start($)
+
+  await run($, 'follow-team', 'atletico atlanta')
+
+  expect(h.urls[0]).toContain('/api/v1/search/?q=atletico%20atlanta&sport=basketball')
+  expect(h.urls[1]).toContain('/api/v1/search/?q=atletico%20atlanta&sport=football')
+  expect(h.urls[2]).toContain('/api/v1/team/?sport=football&slug=atletico-atlanta')
+})
+
+test('follow-team follows a football team and records its sport', async ($, on) => {
+  const h = harness(on, searchRoutes([], [atlanta]))
+  await start($)
+
+  const { text } = await run($, 'follow-team', 'atletico atlanta')
+
+  expect(text).toContain('Now following Atletico Atlanta')
+  expect(h.store.get('followed')).toEqual([{ sport: 'football', ...atlanta }])
+})
+
+test('hits from both sports are listed with their sport emoji', async ($, on) => {
+  const h = harness(on, searchRoutes([valkyries], [tigre]))
+  await start($)
+
+  const { text } = await run($, 'follow-team', 'x1')
+
+  expect(text).toContain('🏀 Golden State Valkyries')
+  expect(text).toContain('⚽ Club Atletico Tigre')
+  expect(h.store.get('followed')).toBeUndefined()
+})
+
+test('a failed football search fails the whole lookup', async ($, on) => {
+  const h = harness(on, { '&sport=basketball': { body: searchBody([valkyries]) }, '&sport=football': { status: 500, body: 'oops' } })
+  await start($)
+
+  const { text } = await run($, 'follow-team', 'valkyries')
+
+  expect(text).toContain("Couldn't look up")
+  expect(h.store.get('followed')).toBeUndefined()
+})
+
+test('a followed football team is polled as football and drawn with the football emoji', async ($, on) => {
+  const h = harness(
+    on,
+    { 'slug=atletico-atlanta': { body: schedule(footballMatch) } },
+    { followed: [{ sport: 'football', ...atlanta }], colours: { 'https://img.example/rafaela.png': '#aa0000', 'https://img.example/atlanta.png': '#0000aa' } },
+  )
+
+  await start($)
+
+  expect(h.urls[0]).toContain('sport=football&slug=atletico-atlanta&limit=50')
+  expect(flatText(gameRow(await mountBand($)))).toBe('⚽ Atletico Rafaela 1 - 2 Atletico Atlanta · 2nd half · ARG Primera Nacional')
+  expect((await readingOf($)).followedSide).toBe('away')
+})
+
+test('football period changes and full time toast with the football emoji', async ($, on) => {
+  const routes: Record<string, Route> = { 'slug=atletico-atlanta': { body: schedule(footballMatch) } }
+  const h = harness(on, routes, { followed: [{ sport: 'football', ...atlanta }] })
+  await start($)
+  routes['slug=atletico-atlanta'] = { body: schedule({ ...footballMatch, status_text: 'Half time' }) }
+  await start($)
+  routes['slug=atletico-atlanta'] = { body: schedule({ ...footballMatch, status: 'finished', status_text: 'Finished', home_score: '1', away_score: '3' }) }
+
+  await start($)
+
+  expect(h.toasts.map(toast => toast.text)).toEqual([
+    '⚽ Half time: Atletico Rafaela 1 - 2 Atletico Atlanta',
+    '⚽ Full time: Atletico Rafaela 1 - 3 Atletico Atlanta',
+  ])
 })

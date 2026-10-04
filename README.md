@@ -68,8 +68,10 @@ empty when the team has no live game.
 <!-- screenshot placeholder -->
 
 - `/follow-team <name>` follows a team, for example
-  `/follow-team golden state valkyries`. If the name matches several
-  teams it lists them and follows none, so try a more specific name.
+  `/follow-team golden state valkyries` or `/follow-team club atletico
+  tigre`. It searches basketball and football together. If the name
+  matches several teams it lists them, with a sport emoji, and follows
+  none, so try a more specific name.
 - `/unfollow-team [name]` stops following.
 - `/sportsball` shows or hides the band. The followed team is kept
   across sessions either way.
@@ -81,7 +83,7 @@ doesn't toast. `/sportsball` off mutes toasts without losing track.
 
 It polls every 30 seconds while a game is live and every 5 minutes
 otherwise. If a poll fails, the last score stays on screen, dimmed, for
-up to 10 minutes. Basketball only for now.
+up to 10 minutes. Basketball and football are supported.
 
 Scores come from the [SportScore](https://sportscore.com) public API,
 which asks for a visible "Powered by SportScore" link, hence the credit

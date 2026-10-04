@@ -1,4 +1,6 @@
-export type Followed = { sport: 'basketball'; slug: string; name: string }
+export type Sport = 'basketball' | 'football'
+
+export type Followed = { sport: Sport; slug: string; name: string }
 
 export type LiveGame = {
   key: string
