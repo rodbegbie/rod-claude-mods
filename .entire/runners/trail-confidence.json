@@ -1,0 +1,37 @@
+{
+  "id": "trail-confidence",
+  "display_name": "Confidence Eval",
+  "enabled": true,
+  "scope": "trail",
+  "runtime": {
+    "kind": "prompt_runner",
+    "agent": "claude",
+    "timeout_ms": 300000,
+    "sandbox": {
+      "base_template": "claude",
+      "repo_token": "read"
+    }
+  },
+  "automation": {
+    "kind": "trail_prompt"
+  },
+  "prompt": {
+    "template": "You are a confidence evaluator. Analyze the changes on branch \"{{branch}}\" compared to \"{{base_branch}}\".\n\nThis repo is a Claude Code plugin marketplace (rod-claude-mods): small mods under `plugins/<mod-name>/`, each with a `.claude-plugin/plugin.json`, listed in `.claude-plugin/marketplace.json`, plus a README table. There is little or no conventional test suite; correctness is established by `claude plugin validate` / `claude plugin test` and by reasoning about hook behaviour.\n\nRun `git diff origin/{{base_branch}}...HEAD` to see the changes, then score **confidence** from 0 to 100 (higher = more confident the changes are correct and verified). Weigh:\n- Manifest correctness: valid JSON, required plugin.json fields, marketplace.json entry whose name/source path matches the plugin folder, consistent names across README, marketplace and plugin.json.\n- Hook/script logic: handles missing or malformed input (e.g. absent token/context data, zero totals, division by zero), terminal rendering edge cases (narrow widths, ANSI/colour codes, color-disabled terminals), and refresh timing (session start, after each turn, toggle on/off).\n- Evidence of verification: tests, or a diff that is simple enough to be checked by inspection.\n- Documented behaviour (README, slash command like `/context-bar`) matching what the code actually does.\n\nBands: 85-100 = small/declarative change, manifests consistent, logic trivially correct or tested; 60-84 = likely correct but unvalidated rendering/hook paths; 30-59 = untested hook or rendering logic with plausible edge-case failures, or doc/manifest mismatches; 0-29 = likely broken manifest, plugin that won't load, or clearly incorrect logic.\n\nOutput ONLY this JSON object as the very last line of your response:\n\n{\"value\": <number 0-100>, \"rationale\": \"<1-2 sentence explanation>\"}"
+  },
+  "select": {
+    "trigger_types": [
+      "api",
+      "push"
+    ]
+  },
+  "output": {
+    "adapter": "last_json_line",
+    "result_type": "trail_monitor",
+    "trail_monitor": {
+      "key": "confidence",
+      "label": "Confidence",
+      "value_type": "percent",
+      "polarity": "higher_is_better"
+    }
+  }
+}

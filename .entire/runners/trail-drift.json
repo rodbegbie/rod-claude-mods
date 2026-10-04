@@ -1,0 +1,37 @@
+{
+  "id": "trail-drift",
+  "display_name": "Drift Eval",
+  "enabled": true,
+  "scope": "trail",
+  "runtime": {
+    "kind": "prompt_runner",
+    "agent": "claude",
+    "timeout_ms": 300000,
+    "sandbox": {
+      "base_template": "claude",
+      "repo_token": "read"
+    }
+  },
+  "automation": {
+    "kind": "trail_prompt"
+  },
+  "prompt": {
+    "template": "You are a drift evaluator. Analyze the changes on branch \"{{branch}}\" compared to \"{{base_branch}}\".\n\nThis repo is a Claude Code plugin marketplace: each mod lives in its own folder `plugins/<mod-name>/` with `.claude-plugin/plugin.json`, is registered in the root `.claude-plugin/marketplace.json`, and is documented in a README mods table plus a short section. Established patterns are small, self-contained mods with concise docs.\n\nRun `git diff origin/{{base_branch}}...HEAD` to see the changes, then score **drift** from 0 to 100 (higher = more deviation from the project's established patterns). Consider:\n- Mod layout: files outside `plugins/<mod-name>/` for mod-specific logic, missing plugin.json, or a mod not registered in marketplace.json / README.\n- Naming consistency (kebab-case mod and command names) across folder, manifest, marketplace entry and README.\n- Cross-mod coupling or shared top-level code/dependencies where mods have been independent.\n- New tooling, build steps, or heavy dependencies in what is otherwise a lightweight, dependency-free plugin repo.\n- Docs style and the validation workflow (`claude plugin validate`, `claude plugin test`) being bypassed.\n- Committing generated or local artifacts that `.gitignore` should cover.\n\nBands: 0-15 = follows the mod layout and conventions exactly; 16-40 = minor stylistic or doc deviations; 41-70 = unregistered/inconsistent mod structure or new tooling patterns; 71-100 = restructures the marketplace, couples mods, or abandons the per-mod folder convention.\n\nOutput ONLY this JSON object as the very last line of your response:\n\n{\"value\": <number 0-100>, \"rationale\": \"<1-2 sentence explanation>\"}"
+  },
+  "select": {
+    "trigger_types": [
+      "api",
+      "push"
+    ]
+  },
+  "output": {
+    "adapter": "last_json_line",
+    "result_type": "trail_monitor",
+    "trail_monitor": {
+      "key": "drift",
+      "label": "Drift",
+      "value_type": "percent",
+      "polarity": "lower_is_better"
+    }
+  }
+}
