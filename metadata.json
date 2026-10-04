@@ -1,0 +1,37 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M440QHJ46W30SZR46036CYGJ",
+  "strategy": "manual-commit",
+  "branch": "feature/usage-bars",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".claude-plugin/marketplace.json",
+    "README.md",
+    "plugins/pro-limits/.claude-plugin/plugin.json",
+    "plugins/pro-limits/hooks/hooks.json",
+    "plugins/pro-limits/hooks/register.test.ts",
+    "plugins/pro-limits/hooks/register.tsx",
+    "plugins/pro-limits/types/index.d.ts",
+    "plugins/usage-bars/.claude-plugin/plugin.json",
+    "plugins/usage-bars/hooks/hooks.json",
+    "plugins/usage-bars/hooks/register.test.ts",
+    "plugins/usage-bars/hooks/register.tsx",
+    "plugins/usage-bars/types/index.d.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 2234,
+    "cache_read_tokens": 291734,
+    "output_tokens": 821,
+    "api_call_count": 3
+  }
+}

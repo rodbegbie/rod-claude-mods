@@ -1,0 +1,97 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M440QHJ46W30SZR46036CYGJ",
+  "session_id": "e9fc756c-1a0f-480c-8f21-5b1834db1dff",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-04T17:52:33.698157Z",
+  "branch": "feature/usage-bars",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".claude-plugin/marketplace.json",
+    "README.md",
+    "plugins/pro-limits/.claude-plugin/plugin.json",
+    "plugins/pro-limits/hooks/hooks.json",
+    "plugins/pro-limits/hooks/register.test.ts",
+    "plugins/pro-limits/hooks/register.tsx",
+    "plugins/pro-limits/types/index.d.ts",
+    "plugins/usage-bars/.claude-plugin/plugin.json",
+    "plugins/usage-bars/hooks/hooks.json",
+    "plugins/usage-bars/hooks/register.test.ts",
+    "plugins/usage-bars/hooks/register.tsx",
+    "plugins/usage-bars/types/index.d.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "b7d6d84c2755",
+  "checkpoint_transcript_start": 194,
+  "transcript_lines_at_start": 194,
+  "compact_transcript_start": 24,
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 2234,
+    "cache_read_tokens": 291734,
+    "output_tokens": 821,
+    "api_call_count": 3
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01JDPZmA3AkUK5BfhafHWbc7",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "plugin-authoring"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "7fecabfac596",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 39,
+        "end": 40,
+        "entry_ids": [
+          "c1de8139-2765-439b-9e90-3fb421f1290a"
+        ],
+        "tool_use_id": "toolu_01JDPZmA3AkUK5BfhafHWbc7"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01JDPZmA3AkUK5BfhafHWbc7"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: plugin-authoring",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-10-04T17:52:33.683129Z",
+    "agent_lines": 264,
+    "agent_removed": 264,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 264,
+    "total_lines_changed": 528,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 15,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".private-journal/2026-10-03/20-49-35-000000-9c66857e.md": 15
+      }
+    }
+  ]
+}
