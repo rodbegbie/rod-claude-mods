@@ -92,13 +92,13 @@ test('toasts once per threshold crossed, silent on first reading', async ($, on)
   expect(toasts[1]).toContain('5-hour limit 95% used')
 })
 
-test('100% shows three skulls instead of the number', async ($, on) => {
+test('100% shows two skulls instead of the number', async ($, on) => {
   const toasts: string[] = []
   stubs(on, [at(100)], toasts)
   await $.session.start({ source: 'startup', cwd: '/tmp' })
 
   const drawn = await mountBand($, 100)
 
-  expect(drawn).toContain('💀💀💀')
+  expect(drawn).toContain('💀💀')
   expect(drawn).not.toContain('100%')
 })

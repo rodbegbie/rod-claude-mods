@@ -43,7 +43,7 @@ resets. Windows only appear once Claude has reported them, so nothing
 shows on API-key accounts.
 
 A toast pops up each time a window passes 20%, 40%, 60%, 80%, 90% or
-95%. Hit 100% and the percentage turns into three skulls. Readings seen
+95%. Hit 100% and the percentage turns into two skulls. Readings seen
 at session start never toast, only crossings after that.
 
 Toggle it with `/pro-limits`. It starts on, refreshes whenever a limit

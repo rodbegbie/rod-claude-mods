@@ -10,11 +10,11 @@ const WINDOWS: Record<string, string> = { five_hour: '5-hour', seven_day: 'Weekl
 
 const COLLAPSE_CONTROL_COLUMNS = 4
 const LABEL_COLUMNS = 9
-const READOUT_COLUMNS = 26
+const READOUT_COLUMNS = 24
 const TICK_MS = 30_000
 const TOAST_MS = 8000
 const THRESHOLDS = [20, 40, 60, 80, 90, 95, 100]
-const SKULLS = '💀💀💀'
+const SKULLS = '💀💀'
 
 const alerted: Record<string, number> = {}
 let isPrimed = false
