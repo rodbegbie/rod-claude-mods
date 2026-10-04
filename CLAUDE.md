@@ -73,6 +73,16 @@ them, so a test must stub every event the mod touches or it fails with
 - Mount a component with `$.ui.mount({ plugin, surface, component, props })`
   and assert on `await mounted.drawn()`, which is plain tree data. Tests
   check the tree, not terminal paint.
+- Register each event stub once per test. A second `on('session.usage', ...)`
+  fails with "registered twice", so for a changing reading, stub with a
+  getter over a mutable variable rather than a call-counted list (call
+  order through `session.start` and `session.measure` is not obvious).
+- If a mod answers `ui.render` with `next(e)` (nothing to draw), a
+  `ui.render` stub returning `{ value: null }` fails with "not a tree
+  element". Assert on state or toasts instead of mounting in that case.
+- Capture toasts with `on('ui.toast', ...)` and drive `session.measure` and
+  `command.run` directly with `$.session.measure(...)` and
+  `$.command.run(...)`.
 
 ## context-bar specifics
 
@@ -90,9 +100,28 @@ them, so a test must stub every event the mod touches or it fails with
 - Percentages are tokens over the compaction window (`rawMaxTokens`), as
   `/context` computes them.
 
+## pro-limits specifics
+
+- Reads `rateLimits` from `$.session.usage()` (`kind` is `five_hour` or
+  `seven_day`; `percentUsed`, optional `resetsAt`). It is empty off a
+  subscription, so the band draws nothing then.
+- Threshold toasts are silent on the first non-empty reading after a
+  load or reload, because module variables reset on hot reload and
+  `session.start` re-primes them. Toggling off mutes toasts but keeps
+  tracking levels, so toggling back on never replays them.
+- Readout width is `READOUT_COLUMNS` (24). The 100% easter egg is two
+  emoji, each two columns wide, so it fits the same space as `100%`.
+
 ## Git and PRs
 
 - Default branch is `main`. Branch from it and PR back into it.
+- In Claude Code's Bash, redirect stdin (`</dev/null`) for `entire` and
+  `gh` commands; a stray stdin read stalls them until the 120s timeout.
+- The trail PR from `entire trail create` is a draft. Merge with
+  `gh pr ready <n>` then `gh pr merge <n> --merge`, delete the feature
+  branch locally and on the remote, and leave the local `entire/<sha>`
+  checkpoint branch alone.
+- README screenshots live in `docs/`, not inside a plugin folder.
 - Merge PRs with a merge commit, not a squash, so the commits that Entire
   checkpoints point at survive.
 - The first `git push` after a commit is often rejected with a bare
