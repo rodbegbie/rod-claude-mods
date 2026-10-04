@@ -18,6 +18,8 @@ const MIN_LUMINANCE = 0.35
 const HEX_COLOUR = /^#[0-9a-f]{6}$/
 const COLLAPSE_CONTROL_COLUMNS = 4
 const MIN_BAND_COLUMNS = 10
+const CREDIT_COLUMNS = 22
+const MIN_GAME_COLUMNS = 20
 const SEPARATOR = ' · '
 const SPORTSCORE_URL = 'https://sportscore.com'
 const SPORT_EMOJI: Record<Followed['sport'], string> = { basketball: '🏀' }
@@ -380,29 +382,41 @@ export const register: Register = on => {
     const { game, followedSide } = data
     const width = Math.max(MIN_BAND_COLUMNS, e.props.bodyColumns - COLLAPSE_CONTROL_COLUMNS)
 
+    const gameText = (
+      <Text wrap="truncate-end" dimColor={data.isStale}>
+        {SPORT_EMOJI[data.sport]}{' '}
+        <Text color={known[game.homeLogo]}>{game.home}</Text>
+        {' '}
+        <Text bold={followedSide === 'home'}>{game.homeScore}</Text>
+        {' - '}
+        <Text bold={followedSide === 'away'}>{game.awayScore}</Text>
+        {' '}
+        <Text color={known[game.awayLogo]}>{game.away}</Text>
+        {SEPARATOR}
+        {game.statusText}
+        {SEPARATOR}
+        {shortCompetition(game.competition)}
+      </Text>
+    )
+    const credit = (
+      <Text wrap="truncate-end" dimColor>
+        Powered by <Link href={SPORTSCORE_URL}>SportScore</Link>
+      </Text>
+    )
+
+    if (width - CREDIT_COLUMNS >= MIN_GAME_COLUMNS) {
+      return (
+        <Box>
+          <Box width={width - CREDIT_COLUMNS}>{gameText}</Box>
+          <Box width={CREDIT_COLUMNS} justifyContent="flex-end">{credit}</Box>
+        </Box>
+      )
+    }
+
     return (
       <Box flexDirection="column">
-        <Box width={width}>
-          <Text wrap="truncate-end" dimColor={data.isStale}>
-            {SPORT_EMOJI[data.sport]}{' '}
-            <Text color={known[game.homeLogo]}>{game.home}</Text>
-            {' '}
-            <Text bold={followedSide === 'home'}>{game.homeScore}</Text>
-            {' - '}
-            <Text bold={followedSide === 'away'}>{game.awayScore}</Text>
-            {' '}
-            <Text color={known[game.awayLogo]}>{game.away}</Text>
-            {SEPARATOR}
-            {game.statusText}
-            {SEPARATOR}
-            {shortCompetition(game.competition)}
-          </Text>
-        </Box>
-        <Box width={width} justifyContent="flex-end">
-          <Text wrap="truncate-end" dimColor>
-            Powered by <Link href={SPORTSCORE_URL}>SportScore</Link>
-          </Text>
-        </Box>
+        <Box width={width}>{gameText}</Box>
+        <Box width={width} justifyContent="flex-end">{credit}</Box>
       </Box>
     )
   })

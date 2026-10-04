@@ -153,6 +153,9 @@ them, so a test must stub every event the mod touches or it fails with
 - Colours are lightened to a minimum luminance when accepted and cached
   in `$.store`, keyed by logo URL. A failed logo is not retried until the
   next session.
+- The "Powered by SportScore" credit is a `Link` (licence requirement),
+  right-aligned on the last game row. It drops to its own row below only
+  when fewer than 20 columns would be left for the game text.
 - `poll` discards a result if the followed team changed while its fetch
   was in flight. Keep that check if you touch it.
 

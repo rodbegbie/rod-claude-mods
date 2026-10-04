@@ -524,18 +524,20 @@ test('the attribution is a link to SportScore', async ($, on) => {
   expect(flatText(links(tree)[0])).toBe('SportScore')
 })
 
-test('the attribution is drawn once, in its own right-aligned row below the game', async ($, on) => {
+test('with room, the attribution shares the game row and is right-aligned', async ($, on) => {
   harness(on, liveSchedule(), { ...followingValkyries, ...colouredLogos })
   await start($)
 
-  const tree = await mountBand($)
+  const tree = await mountBand($, 100)
 
-  const rows = tree.children as Node[]
-  const last = rows[rows.length - 1]
-  expect(flatText(last)).toBe('Powered by SportScore')
-  expect(last.props?.justifyContent).toBe('flex-end')
-  expect(walk(rows[0]).some(n => n.type === 'Link')).toBe(false)
-  expect(walk(last).find(n => n.type === 'Text' && n.props?.dimColor === true)).toBeDefined()
+  const [game, credit] = tree.children as Node[]
+  expect(tree.props?.flexDirection).not.toBe('column')
+  expect(tree.children).toHaveLength(2)
+  expect([game.props?.width, credit.props?.width]).toEqual([74, 22])
+  expect(credit.props?.justifyContent).toBe('flex-end')
+  expect(flatText(credit)).toBe('Powered by SportScore')
+  expect(walk(game).some(n => n.type === 'Link')).toBe(false)
+  expect(links(tree)).toHaveLength(1)
 })
 
 test('a competition other than the WNBA is shown in full', async ($, on) => {
@@ -613,16 +615,26 @@ test('no live game leaves the engine drawing', async ($, on) => {
   expect(flatText(await mountBand($))).toBe('ENGINE')
 })
 
-test('a narrow terminal still draws one truncating game row and keeps the attribution', async ($, on) => {
+test('too narrow for both, the attribution drops to its own right-aligned row below', async ($, on) => {
   harness(on, liveSchedule(), { ...followingValkyries, ...colouredLogos })
   await start($)
 
   const tree = await mountBand($, 30)
 
-  const widths = walk(tree).filter(n => n.type === 'Box' && n.props?.width !== undefined).map(n => n.props?.width)
-  expect(widths).toEqual([26, 26])
+  const [game, credit] = tree.children as Node[]
+  expect(tree.props?.flexDirection).toBe('column')
+  expect([game.props?.width, credit.props?.width]).toEqual([26, 26])
+  expect(credit.props?.justifyContent).toBe('flex-end')
   expect(flatText(gameRow(tree))).toContain('Golden State Valkyries')
   expect(links(tree)).toHaveLength(1)
-  const tiny = walk(await mountBand($, 6)).filter(n => n.type === 'Box' && n.props?.width !== undefined)
-  expect(tiny.map(n => n.props?.width)).toEqual([10, 10])
+  const tiny = await mountBand($, 6)
+  expect((tiny.children as Node[]).map(n => n.props?.width)).toEqual([10, 10])
+})
+
+test('the attribution stays on the game row down to 20 columns for the game, then drops below', async ($, on) => {
+  harness(on, liveSchedule(), { ...followingValkyries, ...colouredLogos })
+  await start($)
+
+  expect((await mountBand($, 46)).props?.flexDirection).not.toBe('column')
+  expect((await mountBand($, 45)).props?.flexDirection).toBe('column')
 })
