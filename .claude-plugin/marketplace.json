@@ -1,0 +1,16 @@
+{
+  "name": "rod-claude-mods",
+  "owner": { "name": "Rod Begbie" },
+  "metadata": {
+    "description": "Rod Begbie's mods for Claude Code"
+  },
+  "plugins": [
+    {
+      "name": "context-bar",
+      "source": "./plugins/context-bar",
+      "description": "Draws the context window as a stacked bar above the prompt, toggled with /context-bar",
+      "version": "0.1.0",
+      "author": { "name": "Rod Begbie" }
+    }
+  ]
+}
