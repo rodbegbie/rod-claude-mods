@@ -42,6 +42,8 @@ engine would refuse.
   `~/.claude/dev-mods/<session-id>/<mod>/`, then copy into `plugins/`
   without the engine-generated `.claude-plugin/types/` and `tsconfig.json`
   (both gitignored).
+- Delete the dev-mods copy once the mod is installed from the marketplace;
+  otherwise both load and the slash command appears twice.
 
 ## Hook module constraints that `validate` enforces
 
@@ -88,8 +90,21 @@ them, so a test must stub every event the mod touches or it fails with
 - Percentages are tokens over the compaction window (`rawMaxTokens`), as
   `/context` computes them.
 
+## Git and PRs
+
+- Default branch is `main`. Branch from it and PR back into it.
+- Merge PRs with a merge commit, not a squash, so the commits that Entire
+  checkpoints point at survive.
+- The first `git push` after a commit is often rejected with a bare
+  `remote rejected (failed)` and no reason. A plain retry has succeeded
+  every time so far.
+
 ## Entire
 
 `.entire/runners/*.json` configures Entire trail runners (prompt runners
 that score the trail on push) with prompts written for this repo's layout.
 If the layout conventions above change, update those prompts to match.
+
+`entire trail create` opens a draft PR whose body starts with an
+`entire-trail-link-start/end` block and ends with an `entire-shadow-pr`
+marker. When rewriting the body, keep both or the trail and PR unlink.
