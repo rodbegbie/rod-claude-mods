@@ -80,6 +80,20 @@ them, so a test must stub every event the mod touches or it fails with
 - If a mod answers `ui.render` with `next(e)` (nothing to draw), a
   `ui.render` stub returning `{ value: null }` fails with "not a tree
   element". Assert on state or toasts instead of mounting in that case.
+- A test's `$` has no `state` noun. To read a mod's state, register
+  `on('state.set', (_$, e, next) => (seen[e.key] = e.value, next(e)))`
+  and assert on what was written. Assert on the whole write history when
+  a stale write could be masked by a later one.
+- A `ui.render` stub answers with the tree itself, not `{ value }`. Use
+  a distinctive stub tree to tell `next(e)` from the mod's own drawing.
+- An `on('clock.after', ...)` stub that resolves makes the kit fire the
+  callback at once, in the background. Return a promise that never
+  resolves, and record `e.ms`, to assert on the delay without firing.
+- A throwing `ui.render` hook is swallowed and the engine draws its own
+  tree, which looks like `next(e)` to a test.
+- The test runner has no `test.each`; loop and call `test` instead.
+- `on(...)` stubs must all be registered before the test first calls
+  `$`, so one test cannot build two harnesses.
 - Capture toasts with `on('ui.toast', ...)` and drive `session.measure` and
   `command.run` directly with `$.session.measure(...)` and
   `$.command.run(...)`.
@@ -111,6 +125,27 @@ them, so a test must stub every event the mod touches or it fails with
   tracking levels, so toggling back on never replays them.
 - Readout width is `READOUT_COLUMNS` (24). The 100% easter egg is two
   emoji, each two columns wide, so it fits the same space as `100%`.
+
+## sportsball specifics
+
+- Data is the SportScore public API (anonymous, about 10,000 requests a
+  day per IP). Scores come back as strings, whatever the OpenAPI spec
+  says. There is no quarter or clock field, only `status_text`.
+- The mod polls `/api/v1/team/`, not `/api/v1/fixtures/`, because
+  fixtures covers one UTC day and drops a game that crosses midnight.
+- Logo colours come from `LOGO_COLOUR_SCRIPT`, a Python script held as a
+  `String.raw` constant in `register.tsx`. The pytest in
+  `plugins/sportsball/tests` extracts it from there, so there is one
+  copy. Keep backticks and dollar-brace sequences out of it. Run the
+  tests with `uv run --with pytest pytest plugins/sportsball/tests`.
+- The script only accepts `https://` URLs because the URLs come from API
+  data. It decodes 8-bit RGB and RGBA PNGs without interlacing, which
+  covers every logo checked; anything else falls back to no colour.
+- Colours are lightened to a minimum luminance when accepted and cached
+  in `$.store`, keyed by logo URL. A failed logo is not retried until the
+  next session.
+- `poll` discards a result if the followed team changed while its fetch
+  was in flight. Keep that check if you touch it.
 
 ## Git and PRs
 

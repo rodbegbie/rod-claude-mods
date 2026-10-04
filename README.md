@@ -10,6 +10,7 @@ Add the marketplace, then install the mods you want:
 /plugin marketplace add rodbegbie/rod-claude-mods
 /plugin install context-bar@rod-claude-mods
 /plugin install pro-limits@rod-claude-mods
+/plugin install sportsball@rod-claude-mods
 ```
 
 To try the marketplace from a local checkout, point at the folder instead:
@@ -53,6 +54,40 @@ at session start never toast, only crossings after that.
 Toggle it with `/pro-limits`. It starts on, refreshes whenever a limit
 moves a whole point, and ticks every 30 seconds to keep the countdown
 honest.
+
+### sportsball
+
+Follows one team and draws its live game above the prompt: both team
+names, the score, the game status and the competition, on a single line.
+The band is empty when the team has no live game.
+
+<!-- screenshot placeholder -->
+
+- `/follow-team <name>` follows a team, for example
+  `/follow-team golden state valkyries`. If the name matches several
+  teams it lists them and follows none, so try a more specific name.
+- `/unfollow-team [name]` stops following.
+- `/sportsball` shows or hides the band. The followed team is kept
+  across sessions either way.
+
+It polls every 30 seconds while a game is live and every 5 minutes
+otherwise. If a poll fails, the last score stays on screen, dimmed, for
+up to 10 minutes. Basketball only for now.
+
+Scores come from the [SportScore](https://sportscore.com) public API,
+which asks for attribution, hence the "via SportScore" on the band.
+
+Team names are coloured from their logos. To do that the mod runs a
+short Python 3 script (standard library only) on your machine, once per
+logo, and caches the result. This is optional: without `python3` the
+names simply draw in the default colour. Two things to know about it:
+
+- It fetches the logo itself, outside the host's web-fetch policy.
+- It needs a terminal session, because mods cannot run commands from
+  other surfaces.
+
+On a Mac without the Command Line Tools the mod skips the script rather
+than trigger the install dialog.
 
 ## Adding a mod
 
