@@ -1,2 +1,4 @@
 plugins/*/.claude-plugin/types/
 plugins/*/tsconfig.json
+__pycache__/
+.pytest_cache/

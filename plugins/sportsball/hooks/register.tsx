@@ -1,12 +1,19 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Followed } from '../types'
+import type { Followed, LiveGame, Reading } from '../types'
 
 const isOn = atom({ plugin: 'sportsball', key: 'isOn' } as const, true)
+const reading = atom({ plugin: 'sportsball', key: 'reading' } as const, null)
 
 const SEARCH_URL = 'https://sportscore.com/api/v1/search/'
+const TEAM_URL = 'https://sportscore.com/api/v1/team/'
 const MIN_NAME_LENGTH = 2
+const LIVE_POLL_MS = 30_000
+const IDLE_POLL_MS = 300_000
+const STALE_MS = 10 * 60_000
+
+let pendingPoll: { cancel: () => void } | null = null
 
 export const LOGO_COLOUR_SCRIPT = String.raw`
 import struct
@@ -171,6 +178,66 @@ async function followedTeams($: EngineInterface): Promise<Followed[]> {
   return stored.filter(item => isTeamHit(item) && (item as Followed).sport === 'basketball')
 }
 
+const text = (value: unknown) => (typeof value === 'string' ? value : '')
+
+function score(value: unknown): string {
+  const trimmed = String(value ?? '').trim()
+  return trimmed === '' ? '0' : trimmed
+}
+
+function toLiveGame(m: Record<string, unknown>): LiveGame {
+  return {
+    home: text(m.home),
+    away: text(m.away),
+    homeScore: score(m.home_score),
+    awayScore: score(m.away_score),
+    homeLogo: text(m.home_logo),
+    awayLogo: text(m.away_logo),
+    statusText: text(m.status_text),
+    competition: text(m.competition),
+  }
+}
+
+async function fetchLiveGame($: EngineInterface, team: Followed): Promise<LiveGame | null | 'error'> {
+  try {
+    const response = await $.http.fetch(`${TEAM_URL}?sport=${team.sport}&slug=${encodeURIComponent(team.slug)}&limit=10`)
+    if (!response.ok) return 'error'
+    const matches = (JSON.parse(response.text) as { matches?: unknown }).matches
+    if (!Array.isArray(matches)) return 'error'
+    const live = matches.find(m => m?.status === 'live')
+    return live ? toLiveGame(live) : null
+  } catch {
+    return 'error'
+  }
+}
+
+function nextReading(result: LiveGame | null | 'error', team: Followed, previous: Reading | null, now: number): Reading | null {
+  if (result === 'error') {
+    if (!previous?.game) return previous
+    if (now - previous.at > STALE_MS) return { game: null, followedSide: null, isStale: false, at: now }
+    return { ...previous, isStale: true }
+  }
+  const followedSide = result?.home === team.name ? 'home' : result?.away === team.name ? 'away' : null
+  return { game: result, followedSide, isStale: false, at: now }
+}
+
+async function poll($: EngineInterface): Promise<void> {
+  pendingPoll?.cancel()
+  pendingPoll = null
+  const [team] = await followedTeams($)
+  if (!team) {
+    await update($, reading, () => null)
+    return
+  }
+  const result = await fetchLiveGame($, team)
+  const [current] = await followedTeams($)
+  if (current?.slug !== team.slug) return
+  const now = await $.clock.now()
+  const next = nextReading(result, team, await read($, reading), now)
+  await update($, reading, () => next)
+  pendingPoll = $.clock.after(next?.game ? LIVE_POLL_MS : IDLE_POLL_MS, () => poll($))
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
@@ -187,6 +254,7 @@ export const register: Register = on => {
       name: 'sportsball',
       description: 'Show or hide the live score above the prompt',
     })
+    await poll($)
 
     return next(e)
   })
@@ -204,6 +272,7 @@ export const register: Register = on => {
     }
     const [hit] = hits
     await $.store.set('followed', [{ sport: 'basketball', slug: hit.slug, name: hit.name }])
+    await poll($)
 
     return { text: `Now following ${hit.name}.` }
   })
@@ -216,6 +285,7 @@ export const register: Register = on => {
       return { text: `Not following ${name}.` }
     }
     await $.store.set('followed', [])
+    await poll($)
 
     return { text: `Stopped following ${team.name}.` }
   })
