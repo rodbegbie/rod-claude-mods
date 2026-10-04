@@ -247,7 +247,7 @@ function lightened(hex: string): string {
 async function helperAvailable($: EngineInterface): Promise<boolean> {
   if (helperUsable !== null) return helperUsable
   try {
-    helperUsable = (await $.process.run(['xcode-select', '-p'], { timeoutMs: 5000 })).exitCode === 0
+    helperUsable = (await $.process.run(['xcode-select', '-p'], { cwd: '/', timeoutMs: 5000 })).exitCode === 0
   } catch {
     helperUsable = true
   }
@@ -257,7 +257,7 @@ async function helperAvailable($: EngineInterface): Promise<boolean> {
 
 async function logoColour($: EngineInterface, url: string): Promise<string | null> {
   try {
-    const result = await $.process.run(['python3', '-c', LOGO_COLOUR_SCRIPT, url], { timeoutMs: HELPER_TIMEOUT_MS })
+    const result = await $.process.run(['python3', '-I', '-c', LOGO_COLOUR_SCRIPT, url], { cwd: '/', timeoutMs: HELPER_TIMEOUT_MS })
     const printed = result.stdout.trim()
 
     return result.exitCode === 0 && HEX_COLOUR.test(printed) ? lightened(printed) : null
@@ -303,7 +303,10 @@ async function poll($: EngineInterface): Promise<void> {
   const next = nextReading(result, team, await read($, reading), now)
   await update($, reading, () => next)
   pendingPoll = $.clock.after(next?.game ? LIVE_POLL_MS : IDLE_POLL_MS, () => poll($))
-  if (next?.game) await ensureColours($, next.game)
+  if (next?.game) {
+    const game = next.game
+    $.clock.after(0, () => void ensureColours($, game).catch(() => {}))
+  }
 }
 
 export const register: Register = on => {
@@ -336,10 +339,12 @@ export const register: Register = on => {
     const hits = await searchTeams($, name)
     if (hits === null) return { text: "Couldn't look up that team just now. Try again shortly." }
     if (hits.length === 0) return { text: `No team matched "${name}".` }
-    if (hits.length > 1) {
+    const exact = hits.filter(h => h.name.toLowerCase() === name.toLowerCase())
+    const chosen = hits.length === 1 ? hits : exact.length === 1 ? exact : null
+    if (chosen === null) {
       return { text: `Several teams match "${name}": ${hits.map(h => h.name).join(', ')}. Try a more specific name.` }
     }
-    const [hit] = hits
+    const [hit] = chosen
     await $.store.set('followed', [{ sport: 'basketball', slug: hit.slug, name: hit.name }])
     await poll($)
 

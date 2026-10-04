@@ -89,6 +89,8 @@ them, so a test must stub every event the mod touches or it fails with
 - An `on('clock.after', ...)` stub that resolves makes the kit fire the
   callback at once, in the background. Return a promise that never
   resolves, and record `e.ms`, to assert on the delay without firing.
+  sportsball resolves only `ms === 0`, its way of moving work off the
+  hook path, so tests wait for that work with a short polling loop.
 - A throwing `ui.render` hook is swallowed and the engine draws its own
   tree, which looks like `next(e)` to a test.
 - The test runner has no `test.each`; loop and call `test` instead.
@@ -138,6 +140,13 @@ them, so a test must stub every event the mod touches or it fails with
   `plugins/sportsball/tests` extracts it from there, so there is one
   copy. Keep backticks and dollar-brace sequences out of it. Run the
   tests with `uv run --with pytest pytest plugins/sportsball/tests`.
+- The script runs as `python3 -I -c` with `cwd: '/'`. Without them,
+  Python puts the session's working directory first on `sys.path`, so a
+  `struct.py` in the user's project would run in place of the stdlib.
+- Colour extraction runs from `$.clock.after(0, ...)`, not inside `poll`,
+  so session start and `/follow-team` never wait on the helper.
+- `/follow-team` follows a lone hit, or the one hit whose name equals the
+  typed name; several other matches get a list and no follow.
 - The script only accepts `https://` URLs because the URLs come from API
   data. It decodes 8-bit RGB and RGBA PNGs without interlacing, which
   covers every logo checked; anything else falls back to no colour.

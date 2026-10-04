@@ -28,15 +28,19 @@ function harness(on: any, routes: Record<string, Route>, initial: Record<string,
     xcodeRejects: false,
     outputs: {} as Record<string, { exitCode?: number; stdout?: string; rejects?: boolean }>,
     calls: [] as (readonly string[])[],
+    inits: [] as any[],
+    gate: undefined as Promise<void> | undefined,
   }
   on('process.run', async (_$: any, e: any) => {
     proc.calls.push(e.argv)
+    proc.inits.push(e.init)
     const done = (exitCode: number, stdout = '') => ({ value: { exitCode, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
     if (e.argv[0] === 'xcode-select') {
       if (proc.xcodeRejects) throw new Error('ENOENT')
       return done(proc.xcodeExit)
     }
-    const out = proc.outputs[e.argv[3]]
+    await proc.gate
+    const out = proc.outputs[e.argv[e.argv.length - 1]]
     if (out?.rejects) throw new Error('boom')
     return done(out?.exitCode ?? 1, out?.stdout ?? '')
   })
@@ -61,7 +65,7 @@ function harness(on: any, routes: Record<string, Route>, initial: Record<string,
   on('store.delete', async (_$: any, e: any) => (store.delete(e.key), { value: undefined }))
   on('session.start', async () => ({ cwd: '/tmp' }))
   on('command.register', async () => ({ value: undefined }))
-  on('clock.after', (_$: any, e: any) => (delays.push(e.ms), new Promise(() => {})))
+  on('clock.after', (_$: any, e: any) => (e.ms === 0 ? Promise.resolve({ value: undefined }) : (delays.push(e.ms), new Promise(() => {}))))
   on('clock.now', async () => ({ value: clock.now }))
   on('ui.render', async () => ({ type: 'Text', children: ['ENGINE'] }))
   return { store, urls, delays, clock, proc }
@@ -366,18 +370,24 @@ const luminance = (hex: string) => {
   return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
 }
 
+const until = async (done: () => boolean) => {
+  for (let i = 0; i < 200 && !done(); i++) await new Promise(resolve => setTimeout(resolve, 5))
+}
+const settle = () => new Promise(resolve => setTimeout(resolve, 40))
+
 test('a live game runs the colour helper once per logo and caches the colours', async ($, on) => {
   const h = harness(on, liveSchedule(), followingValkyries)
   h.proc.outputs[HOME_LOGO] = { exitCode: 0, stdout: '#b896d4\n' }
   h.proc.outputs[AWAY_LOGO] = { exitCode: 0, stdout: '#bc945a\n' }
 
   await start($)
+  await until(() => h.store.has('colours'))
 
   const calls = helperCalls(h)
-  expect(calls.map((argv: readonly string[]) => argv[3]).sort()).toEqual([AWAY_LOGO, HOME_LOGO].sort())
-  expect(calls[0][0]).toBe('python3')
-  expect(calls[0][1]).toBe('-c')
-  expect(calls[0][2]).toContain('dominant_colour')
+  expect(calls.map((argv: readonly string[]) => argv[argv.length - 1]).sort()).toEqual([AWAY_LOGO, HOME_LOGO].sort())
+  expect(calls[0].slice(0, 3)).toEqual(['python3', '-I', '-c'])
+  expect(calls[0][3]).toContain('dominant_colour')
+  expect(h.proc.inits.filter(Boolean).every((init: any) => init.cwd === '/')).toBe(true)
   expect(h.store.get('colours')).toEqual({ [HOME_LOGO]: '#b896d4', [AWAY_LOGO]: '#bc945a' })
   expect(states.colours).toEqual({ [HOME_LOGO]: '#b896d4', [AWAY_LOGO]: '#bc945a' })
 })
@@ -406,10 +416,12 @@ for (const [label, output] of [
     h.proc.outputs[AWAY_LOGO] = { exitCode: 0, stdout: '#bc945a' }
 
     await start($)
+    await until(() => h.store.has('colours'))
     await start($)
+    await settle()
 
     expect(h.store.get('colours')).toEqual({ [AWAY_LOGO]: '#bc945a' })
-    expect(helperCalls(h).filter((argv: readonly string[]) => argv[3] === logo)).toHaveLength(1)
+    expect(helperCalls(h).filter((argv: readonly string[]) => argv[argv.length - 1] === logo)).toHaveLength(1)
   })
 }
 
@@ -418,6 +430,7 @@ test('empty and missing logo URLs make no helper call', async ($, on) => {
   const h = harness(on, { [TEAM_ROUTE]: { body: schedule({ ...noAwayLogo, home_logo: '' }) } }, followingValkyries)
 
   await start($)
+  await settle()
 
   expect(h.proc.calls).toEqual([])
 })
@@ -426,6 +439,7 @@ test('non-https logo URLs make no helper call', async ($, on) => {
   const h = harness(on, liveSchedule({ home_logo: 'http://img.example/plain.png', away_logo: 'file:///etc/passwd' }), followingValkyries)
 
   await start($)
+  await settle()
 
   expect(h.proc.calls).toEqual([])
 })
@@ -435,6 +449,7 @@ test('xcode-select failing means the helper is never run', async ($, on) => {
   h.proc.xcodeExit = 1
 
   await start($)
+  await settle()
 
   expect(helperCalls(h)).toEqual([])
 })
@@ -445,6 +460,7 @@ test('xcode-select being absent does not stop the helper', async ($, on) => {
   h.proc.outputs['https://img.example/y1.png'] = { exitCode: 0, stdout: '#b896d4' }
 
   await start($)
+  await until(() => h.store.has('colours'))
 
   expect(helperCalls(h).length).toBeGreaterThan(0)
   expect(h.store.get('colours')).toEqual({ 'https://img.example/y1.png': '#b896d4' })
@@ -458,6 +474,7 @@ test('a dark logo colour is lightened to a readable luminance and a light one is
   h.proc.outputs[light] = { exitCode: 0, stdout: '#e0c050' }
 
   await start($)
+  await until(() => h.store.has('colours'))
 
   const colours = h.store.get('colours') as Record<string, string>
   expect(luminance(colours[dark])).toBeGreaterThanOrEqual(0.35)
@@ -578,4 +595,41 @@ test('a narrow terminal still draws one truncating row', async ($, on) => {
   expect(row).toHaveLength(1)
   expect(walk(tree).find(n => n.type === 'Box')?.props?.width).toBe(26)
   expect((walk(await mountBand($, 6)).find(n => n.type === 'Box')?.props?.width)).toBe(10)
+})
+
+test('session start does not wait for the colour helper', async ($, on) => {
+  let release!: () => void
+  const h = harness(on, liveSchedule({ home_logo: 'https://img.example/slow1.png', away_logo: 'https://img.example/slow2.png' }), followingValkyries)
+  h.proc.gate = new Promise<void>(resolve => (release = resolve))
+  h.proc.outputs['https://img.example/slow1.png'] = { exitCode: 0, stdout: '#b896d4' }
+
+  await start($)
+
+  expect((await readingOf($)).game.homeScore).toBe('34')
+  expect(h.store.get('colours')).toBeUndefined()
+  release()
+  await until(() => h.store.has('colours'))
+  expect(h.store.get('colours')).toEqual({ 'https://img.example/slow1.png': '#b896d4' })
+})
+
+test('follow-team follows the one hit whose name is exactly what was typed', async ($, on) => {
+  const longer = { name: 'Golden State Valkyries (W)', slug: 'golden-state-valkyries-w' }
+  const h = harness(on, { '/api/v1/search/': { body: searchBody([longer, valkyries]) } })
+  await start($)
+
+  const { text } = await run($, 'follow-team', 'golden state valkyries')
+
+  expect(text).toContain('Now following Golden State Valkyries.')
+  expect(h.store.get('followed')).toEqual([{ sport: 'basketball', ...valkyries }])
+})
+
+test('follow-team with two exact-name hits still asks for a more specific name', async ($, on) => {
+  const twin = { name: 'golden state valkyries', slug: 'twin' }
+  const h = harness(on, { '/api/v1/search/': { body: searchBody([twin, valkyries]) } })
+  await start($)
+
+  const { text } = await run($, 'follow-team', 'Golden State Valkyries')
+
+  expect(text).toContain('Try a more specific name')
+  expect(h.store.get('followed')).toBeUndefined()
 })
