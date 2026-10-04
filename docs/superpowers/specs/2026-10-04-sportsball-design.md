@@ -56,7 +56,7 @@ and a `sportsball specifics` section in `CLAUDE.md`.
 | Command | Behaviour |
 | --- | --- |
 | `/follow-team <name>` | Search for the team and follow it. |
-| `/unfollow-team [name]` | Stop following. A name, if given, must match the followed team. |
+| `/unfollow-team [name]` | Stop following. A name must match the team. |
 | `/sportsball` | Toggle the band on and off. The followed team is kept. |
 
 `/follow-team` rules:
