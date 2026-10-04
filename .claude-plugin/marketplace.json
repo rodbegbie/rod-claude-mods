@@ -18,6 +18,13 @@
       "description": "Gauges for the 5-hour and weekly Claude usage limits above the prompt, toggled with /pro-limits",
       "version": "0.2.0",
       "author": { "name": "Rod Begbie" }
+    },
+    {
+      "name": "sportsball",
+      "source": "./plugins/sportsball",
+      "description": "Follow a team and see its live game score above the prompt, with /follow-team, /unfollow-team and /sportsball",
+      "version": "0.1.0",
+      "author": { "name": "Rod Begbie" }
     }
   ]
 }

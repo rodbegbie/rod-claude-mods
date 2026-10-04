@@ -24,6 +24,7 @@ To try the marketplace from a local checkout, point at the folder instead:
 | --- | --- |
 | [context-bar](plugins/context-bar) | Stacked context-window bar above the prompt |
 | [pro-limits](plugins/pro-limits) | 5-hour and weekly usage-limit gauges above the prompt |
+| [sportsball](plugins/sportsball) | Live score of a followed team above the prompt |
 
 ### context-bar
 
