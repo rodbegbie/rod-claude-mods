@@ -85,7 +85,10 @@ function harness(on: any, routes: Record<string, Route>, initial: Record<string,
     if (asks.answer === undefined) return { deny: 'dismissed' }
     return { result: { questions: e.questions, answers: { [asked.question]: asks.answer } } }
   })
-  return { store, urls, delays, clock, proc, toasts, asks }
+  const panes = { opened: [] as any[], closed: [] as any[] }
+  on('ui.open', async (_$: any, e: any) => (panes.opened.push(e), { value: { isPlaced: true } }))
+  on('ui.close', async (_$: any, e: any) => (panes.closed.push(e), { value: undefined }))
+  return { store, urls, delays, clock, proc, toasts, asks, panes }
 }
 
 const liveMatch = {
@@ -186,6 +189,52 @@ test('different teams with the same label are told apart by their slug', async (
 
   expect(h.asks.calls[0].labels).toEqual(['🏀 Atletico Basket U20 (atletico-basket-u20)', '🏀 Atletico Basket U20 (atletico-basket-u20-2)'])
   expect(h.store.get('followed')).toEqual([{ sport: 'basketball', ...second }])
+})
+
+const manyTeams = (count: number) => Array.from({ length: count }, (_, i) => ({ name: `Atletico ${i + 1}`, slug: `atletico-${i + 1}` }))
+
+async function mountTeamPane($: any) {
+  return $.ui.mount({ plugin: 'sportsball', surface: 'terminal', component: 'Pane', requestId: 'sportsball-teams', props: {} })
+}
+
+test('more than four hits open a pane instead of asking', async ($, on) => {
+  const teams = manyTeams(5)
+  const h = harness(on, searchRoutes(teams, []))
+  await start($)
+
+  const { text } = await run($, 'follow-team', 'atletico')
+
+  expect(h.asks.calls).toHaveLength(0)
+  expect(h.panes.opened).toHaveLength(1)
+  expect(h.panes.opened[0]).toMatchObject({ id: 'sportsball-teams', focus: true, closeOnEscape: true })
+  expect(text).toContain('Pick a team')
+  expect(h.store.get('followed')).toBeUndefined()
+})
+
+test('the team pane offers every hit and picking one follows it and closes the pane', async ($, on) => {
+  const teams = manyTeams(6)
+  const h = harness(on, searchRoutes(teams, []))
+  await start($)
+  await run($, 'follow-team', 'atletico')
+
+  const pane = await mountTeamPane($)
+  const select = walk(await pane.drawn()).find(n => n.type === 'Select')
+  expect(select?.props?.options.map((o: any) => o.label)).toEqual(teams.map(t => `🏀 ${t.name}`))
+
+  await pane.select({ key: select?.props?.key, value: select?.props?.options[3].value })
+
+  expect(h.store.get('followed')).toEqual([{ sport: 'basketball', ...teams[3] }])
+  expect(h.panes.closed.map(closed => closed.id)).toEqual(['sportsball-teams'])
+})
+
+test('a team pane with nothing to pick draws an empty box, not an engine fallback', async ($, on) => {
+  harness(on, searchRoutes([]))
+  await start($)
+
+  const tree = await (await mountTeamPane($)).drawn()
+
+  expect(tree.type).toBe('Box')
+  expect(walk(tree).some(n => n.type === 'Select')).toBe(false)
 })
 
 test('dismissing the team question follows nothing and keeps the current team', async ($, on) => {
