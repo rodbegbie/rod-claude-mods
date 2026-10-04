@@ -1,0 +1,15 @@
+I'd like to create a new mod for Claude Code that lets me follow sports game scores while I'm coding.  It looks like the Sportscore Free API might be a good data source. https://sportscore.com/developers/api/
+
+As a first step, I'd like to be able to tell Claude the name of a team to follow, and then if there's a live game, have it display the current score and other relevant information above the prompt.  (I'll probably want to extend it to support following multiple teams, or to have toast notificiations or a pane display later).
+
+For testing purposes, I'd like to track the current Valkyries game -- it's a WNBA playoff game.
+
+---
+
+Here's their openapi spec: /Users/rod/Downloads/openapi.yaml
+
+---
+
+* Let's call the plugin "sportsball". `/sportsball` is the command to show or hide the UI.
+* There should be an /unfollow-team command to remove a team.
+* Can you use a primary colour from the team's logo to display the team names?
