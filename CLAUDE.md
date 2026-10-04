@@ -108,3 +108,8 @@ If the layout conventions above change, update those prompts to match.
 `entire trail create` opens a draft PR whose body starts with an
 `entire-trail-link-start/end` block and ends with an `entire-shadow-pr`
 marker. When rewriting the body, keep both or the trail and PR unlink.
+
+<!-- entire-agent:begin -->
+Read .entire/agent-guide.md for this repository's workflow, source inspection, and verification guidance.
+@.entire/agent-guide.md
+<!-- entire-agent:end -->
