@@ -5,6 +5,7 @@ import type { Followed, LiveGame, Reading } from '../types'
 
 const isOn = atom({ plugin: 'sportsball', key: 'isOn' } as const, true)
 const reading = atom({ plugin: 'sportsball', key: 'reading' } as const, null)
+const colours = atom({ plugin: 'sportsball', key: 'colours' } as const, {})
 
 const SEARCH_URL = 'https://sportscore.com/api/v1/search/'
 const TEAM_URL = 'https://sportscore.com/api/v1/team/'
@@ -12,8 +13,13 @@ const MIN_NAME_LENGTH = 2
 const LIVE_POLL_MS = 30_000
 const IDLE_POLL_MS = 300_000
 const STALE_MS = 10 * 60_000
+const HELPER_TIMEOUT_MS = 15_000
+const MIN_LUMINANCE = 0.35
+const HEX_COLOUR = /^#[0-9a-f]{6}$/
 
 let pendingPoll: { cancel: () => void } | null = null
+let helperUsable: boolean | null = null
+const attemptedLogos = new Set<string>()
 
 export const LOGO_COLOUR_SCRIPT = String.raw`
 import struct
@@ -221,6 +227,60 @@ function nextReading(result: LiveGame | null | 'error', team: Followed, previous
   return { game: result, followedSide, isStale: false, at: now }
 }
 
+function lightened(hex: string): string {
+  const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16))
+  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+  if (luminance >= MIN_LUMINANCE) return hex
+  const mix = (MIN_LUMINANCE - luminance) / (1 - luminance)
+  const toward = (c: number) => Math.min(255, Math.ceil(c + (255 - c) * mix)).toString(16).padStart(2, '0')
+
+  return `#${toward(r)}${toward(g)}${toward(b)}`
+}
+
+async function helperAvailable($: EngineInterface): Promise<boolean> {
+  if (helperUsable !== null) return helperUsable
+  try {
+    helperUsable = (await $.process.run(['xcode-select', '-p'], { timeoutMs: 5000 })).exitCode === 0
+  } catch {
+    helperUsable = true
+  }
+
+  return helperUsable
+}
+
+async function logoColour($: EngineInterface, url: string): Promise<string | null> {
+  try {
+    const result = await $.process.run(['python3', '-c', LOGO_COLOUR_SCRIPT, url], { timeoutMs: HELPER_TIMEOUT_MS })
+    const printed = result.stdout.trim()
+
+    return result.exitCode === 0 && HEX_COLOUR.test(printed) ? lightened(printed) : null
+  } catch {
+    return null
+  }
+}
+
+async function loadColours($: EngineInterface): Promise<void> {
+  const stored = await $.store.get('colours')
+  const entries = stored && typeof stored === 'object' ? Object.entries(stored) : []
+  const valid = entries.filter(([url, colour]) => typeof colour === 'string' && HEX_COLOUR.test(colour) && url.startsWith('https://'))
+  await update($, colours, () => Object.fromEntries(valid) as Record<string, string>)
+}
+
+async function ensureColours($: EngineInterface, game: LiveGame): Promise<void> {
+  const known = await read($, colours)
+  const wanted = [...new Set([game.homeLogo, game.awayLogo])].filter(
+    url => url.startsWith('https://') && !(url in known) && !attemptedLogos.has(url),
+  )
+  wanted.forEach(url => attemptedLogos.add(url))
+  if (wanted.length === 0 || !(await helperAvailable($))) return
+  for (const url of wanted) {
+    const colour = await logoColour($, url)
+    if (colour === null) continue
+    const all = await update($, colours, current => ({ ...current, [url]: colour }))
+    await $.store.set('colours', all)
+  }
+}
+
 async function poll($: EngineInterface): Promise<void> {
   pendingPoll?.cancel()
   pendingPoll = null
@@ -236,6 +296,7 @@ async function poll($: EngineInterface): Promise<void> {
   const next = nextReading(result, team, await read($, reading), now)
   await update($, reading, () => next)
   pendingPoll = $.clock.after(next?.game ? LIVE_POLL_MS : IDLE_POLL_MS, () => poll($))
+  if (next?.game) await ensureColours($, next.game)
 }
 
 export const register: Register = on => {
@@ -254,6 +315,7 @@ export const register: Register = on => {
       name: 'sportsball',
       description: 'Show or hide the live score above the prompt',
     })
+    await loadColours($)
     await poll($)
 
     return next(e)

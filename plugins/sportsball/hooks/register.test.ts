@@ -23,6 +23,23 @@ function harness(on: any, routes: Record<string, Route>, initial: Record<string,
   const urls: string[] = []
   const delays: number[] = []
   const clock = { now }
+  const proc = {
+    xcodeExit: 0,
+    xcodeRejects: false,
+    outputs: {} as Record<string, { exitCode?: number; stdout?: string; rejects?: boolean }>,
+    calls: [] as (readonly string[])[],
+  }
+  on('process.run', async (_$: any, e: any) => {
+    proc.calls.push(e.argv)
+    const done = (exitCode: number, stdout = '') => ({ value: { exitCode, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
+    if (e.argv[0] === 'xcode-select') {
+      if (proc.xcodeRejects) throw new Error('ENOENT')
+      return done(proc.xcodeExit)
+    }
+    const out = proc.outputs[e.argv[3]]
+    if (out?.rejects) throw new Error('boom')
+    return done(out?.exitCode ?? 1, out?.stdout ?? '')
+  })
   states = {}
   readingWrites = []
   on('state.set', async (_$: any, e: any, next: any) => {
@@ -44,10 +61,10 @@ function harness(on: any, routes: Record<string, Route>, initial: Record<string,
   on('store.delete', async (_$: any, e: any) => (store.delete(e.key), { value: undefined }))
   on('session.start', async () => ({ cwd: '/tmp' }))
   on('command.register', async () => ({ value: undefined }))
-  on('clock.after', async (_$: any, e: any) => (delays.push(e.ms), { value: undefined }))
+  on('clock.after', (_$: any, e: any) => (delays.push(e.ms), new Promise(() => {})))
   on('clock.now', async () => ({ value: clock.now }))
   on('ui.render', async () => ({ value: null }))
-  return { store, urls, delays, clock }
+  return { store, urls, delays, clock, proc }
 }
 
 const liveMatch = {
@@ -338,4 +355,112 @@ test('a poll that returns after switching teams is discarded', async ($, on) => 
 
   expect(readingWrites.filter(r => r?.game)).toEqual([])
   expect((await readingOf($)).game).toBeNull()
+})
+
+const HOME_LOGO = 'https://img.example/valkyries.png'
+const AWAY_LOGO = 'https://img.example/aces.png'
+const liveSchedule = (patch: object = {}) => ({ [TEAM_ROUTE]: { body: schedule({ ...liveMatch, ...patch }) } })
+const helperCalls = (h: any) => h.proc.calls.filter((argv: readonly string[]) => argv[0] === 'python3')
+const luminance = (hex: string) => {
+  const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16))
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+}
+
+test('a live game runs the colour helper once per logo and caches the colours', async ($, on) => {
+  const h = harness(on, liveSchedule(), followingValkyries)
+  h.proc.outputs[HOME_LOGO] = { exitCode: 0, stdout: '#b896d4\n' }
+  h.proc.outputs[AWAY_LOGO] = { exitCode: 0, stdout: '#bc945a\n' }
+
+  await start($)
+
+  const calls = helperCalls(h)
+  expect(calls.map((argv: readonly string[]) => argv[3]).sort()).toEqual([AWAY_LOGO, HOME_LOGO].sort())
+  expect(calls[0][0]).toBe('python3')
+  expect(calls[0][1]).toBe('-c')
+  expect(calls[0][2]).toContain('dominant_colour')
+  expect(h.store.get('colours')).toEqual({ [HOME_LOGO]: '#b896d4', [AWAY_LOGO]: '#bc945a' })
+  expect(states.colours).toEqual({ [HOME_LOGO]: '#b896d4', [AWAY_LOGO]: '#bc945a' })
+})
+
+test('colours cached in the store are loaded and not fetched again', async ($, on) => {
+  const h = harness(on, liveSchedule(), {
+    ...followingValkyries,
+    colours: { [HOME_LOGO]: '#b896d4', [AWAY_LOGO]: '#bc945a' },
+  })
+
+  await start($)
+
+  expect(h.proc.calls).toEqual([])
+  expect(states.colours).toEqual({ [HOME_LOGO]: '#b896d4', [AWAY_LOGO]: '#bc945a' })
+})
+
+for (const [label, output] of [
+  ['a non-zero exit', { exitCode: 1, stdout: '' }],
+  ['a rejection', { rejects: true }],
+  ['output that is not a colour', { exitCode: 0, stdout: 'purple' }],
+] as const) {
+  test(`${label} leaves the neutral colour and is not retried`, async ($, on) => {
+    const h = harness(on, liveSchedule({ home_logo: 'https://img.example/f-' + label.length + '.png' }), followingValkyries)
+    const logo = 'https://img.example/f-' + label.length + '.png'
+    h.proc.outputs[logo] = output
+    h.proc.outputs[AWAY_LOGO] = { exitCode: 0, stdout: '#bc945a' }
+
+    await start($)
+    await start($)
+
+    expect(h.store.get('colours')).toEqual({ [AWAY_LOGO]: '#bc945a' })
+    expect(helperCalls(h).filter((argv: readonly string[]) => argv[3] === logo)).toHaveLength(1)
+  })
+}
+
+test('empty and missing logo URLs make no helper call', async ($, on) => {
+  const { away_logo: _dropped, ...noAwayLogo } = liveMatch
+  const h = harness(on, { [TEAM_ROUTE]: { body: schedule({ ...noAwayLogo, home_logo: '' }) } }, followingValkyries)
+
+  await start($)
+
+  expect(h.proc.calls).toEqual([])
+})
+
+test('non-https logo URLs make no helper call', async ($, on) => {
+  const h = harness(on, liveSchedule({ home_logo: 'http://img.example/plain.png', away_logo: 'file:///etc/passwd' }), followingValkyries)
+
+  await start($)
+
+  expect(h.proc.calls).toEqual([])
+})
+
+test('xcode-select failing means the helper is never run', async ($, on) => {
+  const h = harness(on, liveSchedule({ home_logo: 'https://img.example/x1.png', away_logo: 'https://img.example/x2.png' }), followingValkyries)
+  h.proc.xcodeExit = 1
+
+  await start($)
+
+  expect(helperCalls(h)).toEqual([])
+})
+
+test('xcode-select being absent does not stop the helper', async ($, on) => {
+  const h = harness(on, liveSchedule({ home_logo: 'https://img.example/y1.png', away_logo: 'https://img.example/y2.png' }), followingValkyries)
+  h.proc.xcodeRejects = true
+  h.proc.outputs['https://img.example/y1.png'] = { exitCode: 0, stdout: '#b896d4' }
+
+  await start($)
+
+  expect(helperCalls(h).length).toBeGreaterThan(0)
+  expect(h.store.get('colours')).toEqual({ 'https://img.example/y1.png': '#b896d4' })
+})
+
+test('a dark logo colour is lightened to a readable luminance and a light one is left alone', async ($, on) => {
+  const dark = 'https://img.example/navy.png'
+  const light = 'https://img.example/gold.png'
+  const h = harness(on, liveSchedule({ home_logo: dark, away_logo: light }), followingValkyries)
+  h.proc.outputs[dark] = { exitCode: 0, stdout: '#101040' }
+  h.proc.outputs[light] = { exitCode: 0, stdout: '#e0c050' }
+
+  await start($)
+
+  const colours = h.store.get('colours') as Record<string, string>
+  expect(luminance(colours[dark])).toBeGreaterThanOrEqual(0.35)
+  expect(colours[dark]).not.toBe('#101040')
+  expect(colours[light]).toBe('#e0c050')
 })
