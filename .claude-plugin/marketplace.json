@@ -16,7 +16,7 @@
       "name": "usage-bars",
       "source": "./plugins/usage-bars",
       "description": "Gauges for the 5-hour and weekly Claude usage limits above the prompt, toggled with /usage-bars",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "author": { "name": "Rod Begbie" }
     }
   ]

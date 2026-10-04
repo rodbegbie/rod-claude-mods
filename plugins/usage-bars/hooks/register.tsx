@@ -10,8 +10,14 @@ const WINDOWS: Record<string, string> = { five_hour: '5-hour', seven_day: 'Weekl
 
 const COLLAPSE_CONTROL_COLUMNS = 4
 const LABEL_COLUMNS = 9
-const READOUT_COLUMNS = 24
+const READOUT_COLUMNS = 26
 const TICK_MS = 30_000
+const TOAST_MS = 8000
+const THRESHOLDS = [20, 40, 60, 80, 90, 95, 100]
+const SKULLS = '💀💀💀'
+
+const alerted: Record<string, number> = {}
+let isPrimed = false
 
 const GREEN = [78, 186, 101]
 const AMBER = [230, 180, 60]
@@ -36,6 +42,30 @@ function untilReset(resetsAt: string | undefined, now: number) {
   return `resets in ${Math.floor(minutes / (24 * 60))}d ${Math.floor((minutes % (24 * 60)) / 60)}h`
 }
 
+const crossed = (percent: number) => THRESHOLDS.filter(t => percent >= t).length
+
+function readout(percent: number) {
+  return percent >= 100 ? SKULLS : `${Math.round(percent)}%`
+}
+
+function announce($: EngineInterface, limits: Usage['limits'], now: number) {
+  for (const l of limits) {
+    const level = crossed(l.percentUsed)
+    const isRising = level > (alerted[l.kind] ?? 0)
+    alerted[l.kind] = level
+    if (!isPrimed || !isRising) continue
+
+    const name = WINDOWS[l.kind]
+    $.ui.toast(
+      l.percentUsed >= 100
+        ? `${SKULLS} ${name} limit reached, ${untilReset(l.resetsAt, now)}`
+        : `${name} limit ${THRESHOLDS[level - 1]}% used, ${untilReset(l.resetsAt, now)}`,
+      { timeoutMs: TOAST_MS },
+    )
+  }
+  if (limits.length > 0) isPrimed = true
+}
+
 async function refresh($: EngineInterface) {
   const { rateLimits } = await $.session.usage()
   const now = await $.clock.now()
@@ -45,6 +75,7 @@ async function refresh($: EngineInterface) {
       .map(l => ({ kind: l.kind, percentUsed: l.percentUsed, resetsAt: l.resetsAt })),
     now,
   }
+  announce($, next.limits, now)
   await update($, usage, () => next)
 }
 
@@ -94,7 +125,7 @@ export const register: Register = on => {
               <Text color={color}>{'█'.repeat(filled)}</Text>
               <Text dimColor>{'░'.repeat(width - filled)}</Text>
               <Text wrap="truncate-end">
-                <Text color={color}> {`${Math.round(l.percentUsed)}%`.padStart(4)}</Text>
+                <Text color={color}> {readout(l.percentUsed).padStart(4)}</Text>
                 <Text dimColor>  {untilReset(l.resetsAt, data.now)}</Text>
               </Text>
             </Box>

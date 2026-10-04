@@ -42,6 +42,10 @@ the limit, followed by the percentage used and the time until that window
 resets. Windows only appear once Claude has reported them, so nothing
 shows on API-key accounts.
 
+A toast pops up each time a window passes 20%, 40%, 60%, 80%, 90% or
+95%. Hit 100% and the percentage turns into three skulls. Readings seen
+at session start never toast, only crossings after that.
+
 Toggle it with `/usage-bars`. It starts on, refreshes whenever a limit
 moves a whole point, and ticks every 30 seconds to keep the countdown
 honest.
