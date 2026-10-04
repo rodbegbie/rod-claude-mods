@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M44NGEX88MJXD424ZP2YJKNJ",
+  "strategy": "manual-commit",
+  "branch": "feature/7-follow-team-picker",
+  "checkpoints_count": 2,
+  "files_touched": [
+    ".claude-plugin/marketplace.json",
+    "CLAUDE.md",
+    "README.md",
+    "plugins/sportsball/.claude-plugin/plugin.json"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 9507,
+    "cache_read_tokens": 1089572,
+    "output_tokens": 3514,
+    "api_call_count": 7
+  }
+}
