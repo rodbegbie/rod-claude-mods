@@ -1,0 +1,33 @@
+create a mod that draws my context window as a stacked bar above the prompt, one color per category like /context, toggled with /context-bar
+
+---
+
+The legend line needs to wrap. Right now it goes off the right of the screen.
+
+---
+
+Tweak it so System prompt and System tools aren't shades of grey.  Also, display percentages in dark grey after the raw token counts.
+
+---
+
+What is the gray blob on the row below the bar meant to show?
+
+---
+
+I've drawn an arrow pointing at the blob I'm referring to. [Image #1]
+
+---
+
+Maybe it's the bar wrapping? Why is there a "[-]" at the right of the usage bar?
+
+---
+
+Yes, if I resize the window, the grey box always lines up with the start of the unused space section of the bar. [Image #2] [Image #3]
+
+---
+
+Yes, that did the trick.
+
+---
+
+"Rod Begbie" for the author.  I want this repo to be a plugin marketplace so the mods in it are easy to install, so bear that in mind when you bring over the code.
