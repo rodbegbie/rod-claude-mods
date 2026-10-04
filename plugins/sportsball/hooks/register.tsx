@@ -16,6 +16,9 @@ const STALE_MS = 10 * 60_000
 const HELPER_TIMEOUT_MS = 15_000
 const MIN_LUMINANCE = 0.35
 const HEX_COLOUR = /^#[0-9a-f]{6}$/
+const COLLAPSE_CONTROL_COLUMNS = 4
+const MIN_BAND_COLUMNS = 10
+const SEPARATOR = ' · '
 
 let pendingPoll: { cancel: () => void } | null = null
 let helperUsable: boolean | null = null
@@ -227,6 +230,10 @@ function nextReading(result: LiveGame | null | 'error', team: Followed, previous
   return { game: result, followedSide, isStale: false, at: now }
 }
 
+function shortCompetition(name: string): string {
+  return name === "Women's National Basketball Association" ? 'WNBA' : name
+}
+
 function lightened(hex: string): string {
   const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16))
   const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
@@ -356,5 +363,34 @@ export const register: Register = on => {
     const now = await update($, isOn, v => !v)
 
     return { text: `Sportsball ${now ? 'on' : 'off'}.` }
+  })
+
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    const data = await read($, reading)
+    if (e.props.hasSurvey || !data?.game || !(await read($, isOn))) return next(e)
+    const known = await read($, colours)
+    const { Box, Text } = $.ui.resolve(e)
+    const { game, followedSide } = data
+    const width = Math.max(MIN_BAND_COLUMNS, e.props.bodyColumns - COLLAPSE_CONTROL_COLUMNS)
+
+    return (
+      <Box width={width}>
+        <Text wrap="truncate-end" dimColor={data.isStale}>
+          <Text color={known[game.homeLogo]}>{game.home}</Text>
+          {' '}
+          <Text bold={followedSide === 'home'}>{game.homeScore}</Text>
+          {' - '}
+          <Text bold={followedSide === 'away'}>{game.awayScore}</Text>
+          {' '}
+          <Text color={known[game.awayLogo]}>{game.away}</Text>
+          {SEPARATOR}
+          {game.statusText}
+          {SEPARATOR}
+          {shortCompetition(game.competition)}
+          {SEPARATOR}
+          <Text dimColor>via SportScore</Text>
+        </Text>
+      </Box>
+    )
   })
 }

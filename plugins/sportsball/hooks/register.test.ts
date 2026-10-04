@@ -63,7 +63,7 @@ function harness(on: any, routes: Record<string, Route>, initial: Record<string,
   on('command.register', async () => ({ value: undefined }))
   on('clock.after', (_$: any, e: any) => (delays.push(e.ms), new Promise(() => {})))
   on('clock.now', async () => ({ value: clock.now }))
-  on('ui.render', async () => ({ value: null }))
+  on('ui.render', async () => ({ type: 'Text', children: ['ENGINE'] }))
   return { store, urls, delays, clock, proc }
 }
 
@@ -463,4 +463,119 @@ test('a dark logo colour is lightened to a readable luminance and a light one is
   expect(luminance(colours[dark])).toBeGreaterThanOrEqual(0.35)
   expect(colours[dark]).not.toBe('#101040')
   expect(colours[light]).toBe('#e0c050')
+})
+
+type Node = { type?: string; props?: Record<string, any>; children?: (Node | string)[] }
+
+const walk = (node: Node | string): Node[] => (typeof node === 'string' ? [] : [node, ...(node.children ?? []).flatMap(walk)])
+const flatText = (node: Node | string): string => (typeof node === 'string' ? node : (node.children ?? []).map(flatText).join(''))
+const textNode = (tree: Node, text: string) => walk(tree).find(n => n.type === 'Text' && n.children?.includes(text))
+
+async function mountBand($: any, bodyColumns = 100, hasSurvey = false): Promise<Node> {
+  const band = await $.ui.mount({
+    plugin: 'sportsball',
+    surface: 'terminal',
+    component: 'AbovePrompt',
+    props: { hasSurvey, isWorking: false, maxRows: 10, bodyColumns },
+  })
+  return band.drawn()
+}
+
+const colouredLogos = { colours: { [HOME_LOGO]: '#b896d4', [AWAY_LOGO]: '#bc945a' } }
+
+test('the band draws the live game on one line with attribution', async ($, on) => {
+  harness(on, liveSchedule(), { ...followingValkyries, ...colouredLogos })
+  await start($)
+
+  const tree = await mountBand($)
+
+  expect(flatText(tree)).toBe('Golden State Valkyries 34 - 31 Las Vegas Aces · Half time · WNBA · via SportScore')
+  expect(textNode(tree, 'via SportScore')?.props?.dimColor).toBe(true)
+})
+
+test('a competition other than the WNBA is shown in full', async ($, on) => {
+  harness(on, liveSchedule({ competition: 'NBA Cup' }), { ...followingValkyries, ...colouredLogos })
+  await start($)
+
+  expect(flatText(await mountBand($))).toContain('· NBA Cup ·')
+})
+
+test('team names carry their cached logo colours', async ($, on) => {
+  harness(on, liveSchedule(), { ...followingValkyries, ...colouredLogos })
+  await start($)
+
+  const tree = await mountBand($)
+
+  expect(textNode(tree, 'Golden State Valkyries')?.props?.color).toBe('#b896d4')
+  expect(textNode(tree, 'Las Vegas Aces')?.props?.color).toBe('#bc945a')
+})
+
+test('a team without a cached colour draws with no colour', async ($, on) => {
+  const h = harness(on, liveSchedule(), followingValkyries)
+  h.proc.xcodeExit = 1
+  await start($)
+
+  const tree = await mountBand($)
+
+  expect(textNode(tree, 'Golden State Valkyries')).toBeDefined()
+  expect(textNode(tree, 'Golden State Valkyries')?.props?.color).toBeUndefined()
+})
+
+test('only the followed team score is bold', async ($, on) => {
+  harness(on, liveSchedule(), { ...followingValkyries, ...colouredLogos })
+  await start($)
+
+  const tree = await mountBand($)
+
+  expect(textNode(tree, '34')?.props?.bold).toBe(true)
+  expect(textNode(tree, '31')?.props?.bold).toBeFalsy()
+})
+
+test('a stale reading is drawn dimmed and a fresh one is not', async ($, on) => {
+  const routes: Record<string, Route> = liveSchedule()
+  harness(on, routes, { ...followingValkyries, ...colouredLogos })
+  await start($)
+  const isDim = (tree: Node) => walk(tree).find(n => n.props?.wrap === 'truncate-end')?.props?.dimColor === true
+  expect(isDim(await mountBand($))).toBe(false)
+  routes[TEAM_ROUTE] = { status: 500, body: 'oops' }
+
+  await start($)
+
+  expect(isDim(await mountBand($))).toBe(true)
+})
+
+test('the band stays out of the way when there is nothing to show', async ($, on) => {
+  harness(on, liveSchedule(), { ...followingValkyries, ...colouredLogos })
+  await start($)
+  expect(flatText(await mountBand($))).toContain('Half time')
+
+  expect(flatText(await mountBand($, 100, true))).toBe('ENGINE')
+  await run($, 'sportsball')
+  expect(flatText(await mountBand($))).toBe('ENGINE')
+})
+
+test('no followed team and no live game both leave the engine drawing', async ($, on) => {
+  harness(on, {})
+  await start($)
+
+  expect(flatText(await mountBand($))).toBe('ENGINE')
+})
+
+test('no live game leaves the engine drawing', async ($, on) => {
+  harness(on, { [TEAM_ROUTE]: { body: schedule(finishedMatch) } }, followingValkyries)
+  await start($)
+
+  expect(flatText(await mountBand($))).toBe('ENGINE')
+})
+
+test('a narrow terminal still draws one truncating row', async ($, on) => {
+  harness(on, liveSchedule(), { ...followingValkyries, ...colouredLogos })
+  await start($)
+
+  const tree = await mountBand($, 30)
+
+  const row = walk(tree).filter(n => n.props?.wrap === 'truncate-end')
+  expect(row).toHaveLength(1)
+  expect(walk(tree).find(n => n.type === 'Box')?.props?.width).toBe(26)
+  expect((walk(await mountBand($, 6)).find(n => n.type === 'Box')?.props?.width)).toBe(10)
 })
