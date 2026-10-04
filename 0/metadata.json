@@ -1,0 +1,230 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M44DHDFSFG5G0E0Q25A817ZQ",
+  "session_id": "365337a8-8c39-4241-a656-e5eaefb2f6fa",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-04T21:36:24.336483Z",
+  "branch": "feature/sportsball",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "plugins/sportsball/hooks/register.test.ts",
+    "plugins/sportsball/hooks/register.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "7eed9e839522",
+  "checkpoint_transcript_start": 777,
+  "transcript_lines_at_start": 777,
+  "compact_transcript_start": 102,
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 20088,
+    "cache_read_tokens": 2413620,
+    "output_tokens": 17658,
+    "api_call_count": 10
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_0118CfF4U2tjPYxLmfmVysKv",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "superpowers:brainstorming"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "397478898619",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 34,
+        "end": 35,
+        "entry_ids": [
+          "5ff76ae3-3c6f-4ebe-89b4-0a1d4745addf"
+        ],
+        "tool_use_id": "toolu_0118CfF4U2tjPYxLmfmVysKv"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_0118CfF4U2tjPYxLmfmVysKv"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: superpowers:brainstorming",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01C5pSgpmbvzVQDFh2JeWc1H",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "plugin-authoring"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "397478898619",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 35,
+        "end": 36,
+        "entry_ids": [
+          "1d07c445-583b-440c-836f-dc90eaa13884"
+        ],
+        "tool_use_id": "toolu_01C5pSgpmbvzVQDFh2JeWc1H"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01C5pSgpmbvzVQDFh2JeWc1H"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: plugin-authoring",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01AetXi5RAwVmnZGY2h5LSdx",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "markdown"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "397478898619",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 182,
+        "end": 183,
+        "entry_ids": [
+          "0f0ead32-40ce-4bd6-b815-51fe9956e1ed"
+        ],
+        "tool_use_id": "toolu_01AetXi5RAwVmnZGY2h5LSdx"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01AetXi5RAwVmnZGY2h5LSdx"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: markdown",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01PbwyrQbsE3CCWQ6KB9fkky",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "superpowers:writing-plans"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "a32e95cdc369",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 255,
+        "end": 256,
+        "entry_ids": [
+          "abfc7058-74fa-4b58-8d61-96cba9772d05"
+        ],
+        "tool_use_id": "toolu_01PbwyrQbsE3CCWQ6KB9fkky"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01PbwyrQbsE3CCWQ6KB9fkky"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: superpowers:writing-plans",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01Gsvnhb9Kg5Qn3Le913imzY",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "superpowers:executing-plans"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "a480ec6c186b",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 425,
+        "end": 426,
+        "entry_ids": [
+          "357be213-3b37-4fcc-964a-67a7f7180ccf"
+        ],
+        "tool_use_id": "toolu_01Gsvnhb9Kg5Qn3Le913imzY"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01Gsvnhb9Kg5Qn3Le913imzY"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: superpowers:executing-plans",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01LskjGnjNmR5snh2pZKA15P",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "superpowers:test-driven-development"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "a480ec6c186b",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 437,
+        "end": 438,
+        "entry_ids": [
+          "dcd236a4-f7f4-4cb2-aa79-315beb44f574"
+        ],
+        "tool_use_id": "toolu_01LskjGnjNmR5snh2pZKA15P"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01LskjGnjNmR5snh2pZKA15P"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: superpowers:test-driven-development",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 4
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-10-04T21:36:24.299013Z",
+    "agent_lines": 189,
+    "agent_removed": 2,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 189,
+    "total_lines_changed": 191,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}
