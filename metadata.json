@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M444W70B2SFTS4NJTF0MA24X",
+  "strategy": "manual-commit",
+  "branch": "feature/usage-bars",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "README.md",
+    "docs/pro-limits.png"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 5163,
+    "cache_read_tokens": 485644,
+    "output_tokens": 1054,
+    "api_call_count": 4
+  }
+}

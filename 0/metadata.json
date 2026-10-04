@@ -1,0 +1,118 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M444W70B2SFTS4NJTF0MA24X",
+  "session_id": "e9fc756c-1a0f-480c-8f21-5b1834db1dff",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-04T19:05:01.117944Z",
+  "branch": "feature/usage-bars",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "README.md",
+    "docs/pro-limits.png"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "2e069cdaff51",
+  "checkpoint_transcript_start": 339,
+  "transcript_lines_at_start": 339,
+  "compact_transcript_start": 45,
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 5163,
+    "cache_read_tokens": 485644,
+    "output_tokens": 1054,
+    "api_call_count": 4
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01JDPZmA3AkUK5BfhafHWbc7",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "plugin-authoring"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "7fecabfac596",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 39,
+        "end": 40,
+        "entry_ids": [
+          "c1de8139-2765-439b-9e90-3fb421f1290a"
+        ],
+        "tool_use_id": "toolu_01JDPZmA3AkUK5BfhafHWbc7"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01JDPZmA3AkUK5BfhafHWbc7"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: plugin-authoring",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01SMM5bgYCLQvete9qspdyys",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "markdown"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "2e069cdaff51",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 354,
+        "end": 355,
+        "entry_ids": [
+          "e89d7812-a527-45ff-ba13-2527adabc411"
+        ],
+        "tool_use_id": "toolu_01SMM5bgYCLQvete9qspdyys"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01SMM5bgYCLQvete9qspdyys"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: markdown",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 6
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-10-04T19:05:01.090058Z",
+    "agent_lines": 3,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 3,
+    "total_lines_changed": 3,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 15,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".private-journal/2026-10-03/20-49-35-000000-9c66857e.md": 15
+      }
+    }
+  ]
+}
