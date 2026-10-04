@@ -59,9 +59,9 @@ test('gauge is greener at 42% than at 90%', async ($, on) => {
   expect(colours[0][1]).toBeGreaterThan(colours[colours.length - 1][1])
 })
 
-function stubs(on: any, readings: any[][], toasts: string[]) {
+function stubs(on: any, readings: any[][] | (() => any[]), toasts: string[]) {
   let i = 0
-  on('session.usage', async () => ({ value: { startedAt: 0, context: { window: 200000 }, rateLimits: readings[Math.min(i++, readings.length - 1)] } }))
+  on('session.usage', async () => ({ value: { startedAt: 0, context: { window: 200000 }, rateLimits: typeof readings === 'function' ? readings() : readings[Math.min(i++, readings.length - 1)] } }))
   on('clock.now', async () => ({ value: now }))
   on('clock.every', async () => ({ value: undefined }))
   on('session.start', async () => ({ cwd: '/tmp' }))
@@ -101,4 +101,36 @@ test('100% shows two skulls instead of the number', async ($, on) => {
 
   expect(drawn).toContain('💀💀')
   expect(drawn).not.toContain('100%')
+})
+
+test('survives a usage reading with no rateLimits', async ($, on) => {
+  const toasts: string[] = []
+  stubs(on, [undefined as any], toasts)
+  await $.session.start({ source: 'startup', cwd: '/tmp' })
+
+  expect(toasts).toEqual([])
+})
+
+test('toggling off mutes toasts but keeps tracking thresholds', async ($, on) => {
+  const toasts: string[] = []
+  let reading = at(10)
+  stubs(on, () => reading, toasts)
+  on('session.measure', async () => ({ changed: [] }))
+  const measure = (r: any[]) => {
+    reading = r
+    return $.session.measure({ context: { window: 200000 }, rateLimits: r, changed: ['rateLimits'] })
+  }
+  await $.session.start({ source: 'startup', cwd: '/tmp' })
+  await $.command.run({ command: 'pro-limits', args: '' })
+
+  await measure(at(45))
+  expect(toasts).toEqual([])
+
+  await $.command.run({ command: 'pro-limits', args: '' })
+  await measure(at(45))
+  expect(toasts).toEqual([])
+
+  await measure(at(62))
+  expect(toasts.length).toBe(1)
+  expect(toasts[0]).toContain('5-hour limit 60% used')
 })

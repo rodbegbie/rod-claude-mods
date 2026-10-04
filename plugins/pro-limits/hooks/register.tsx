@@ -48,12 +48,12 @@ function readout(percent: number) {
   return percent >= 100 ? SKULLS : `${Math.round(percent)}%`
 }
 
-function announce($: EngineInterface, limits: Usage['limits'], now: number) {
+function announce($: EngineInterface, limits: Usage['limits'], now: number, isMuted: boolean) {
   for (const l of limits) {
     const level = crossed(l.percentUsed)
     const isRising = level > (alerted[l.kind] ?? 0)
     alerted[l.kind] = level
-    if (!isPrimed || !isRising) continue
+    if (!isPrimed || !isRising || isMuted) continue
 
     const name = WINDOWS[l.kind]
     $.ui.toast(
@@ -67,7 +67,7 @@ function announce($: EngineInterface, limits: Usage['limits'], now: number) {
 }
 
 async function refresh($: EngineInterface) {
-  const { rateLimits } = await $.session.usage()
+  const rateLimits = (await $.session.usage()).rateLimits ?? []
   const now = await $.clock.now()
   const next: Usage = {
     limits: rateLimits
@@ -75,7 +75,7 @@ async function refresh($: EngineInterface) {
       .map(l => ({ kind: l.kind, percentUsed: l.percentUsed, resetsAt: l.resetsAt })),
     now,
   }
-  announce($, next.limits, now)
+  announce($, next.limits, now, !(await read($, isOn)))
   await update($, usage, () => next)
 }
 
@@ -100,7 +100,7 @@ export const register: Register = on => {
   on('command.run', { command: 'pro-limits' }, async $ => {
     const now = await update($, isOn, v => !v)
 
-    return { text: `Usage bars ${now ? 'on' : 'off'}.` }
+    return { text: `Pro limits ${now ? 'on' : 'off'}.` }
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
