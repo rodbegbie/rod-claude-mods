@@ -1,0 +1,15 @@
+Let's keep an eye on the match for now in the background.
+
+---
+
+<task-notification>
+<task-id>b0p3xbk9i</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-rod-build-rod-claude-mods/365337a8-8c39-4241-a656-e5eaefb2f6fa/tasks/b0p3xbk9i.output</output-file>
+<status>completed</status>
+<summary>Background command "Watch Atlanta match until it finishes (background)" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+Yup, I got the Atlanta full-time toast.  Good stuff.  I think for football we should add toasts for score changes.  That's rare enough that it wouldn't be noisy like basketball.  Include the live_minute in the toast if we have one.
