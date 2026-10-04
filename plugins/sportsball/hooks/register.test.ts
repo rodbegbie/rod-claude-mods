@@ -924,7 +924,7 @@ test("half time's live_minute of HT is not drawn as a minute", async ($, on) => 
   expect(row).not.toContain('HT')
 })
 
-for (const [label, minute, shown] of [['stoppage time', '45+2', "45+2'"], ['padded digits', ' 67 ', "67'"], ['a number', 90, "90'"]] as const) {
+for (const [label, minute, shown] of [['stoppage time', '45+2', "45+2'"], ['stoppage time with no number yet', '90+', "90+'"], ['first-half stoppage time', '45+', "45+'"], ['padded digits', ' 67 ', "67'"], ['a number', 90, "90'"]] as const) {
   test(`${label} is drawn as a minute`, async ($, on) => {
     footballHarness(on, { [MATCH_ROUTE]: detail(minute) })
 
