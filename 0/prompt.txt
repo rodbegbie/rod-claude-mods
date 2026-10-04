@@ -1,0 +1,1 @@
+Good stuff.  OK, now add toasts that pop up when the 20%, 40%, 60%, 80%, 90% and 95% limits are reached for either session.  And an easter egg, if it gets to 100%, replace the "100%" text with three skull emojis.
