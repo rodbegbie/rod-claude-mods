@@ -18,6 +18,7 @@ export type LiveGame = {
 export type Reading = {
   game: LiveGame | null
   sport: Followed['sport']
+  slug: string
   followedSide: 'home' | 'away' | null
   isStale: boolean
   at: number

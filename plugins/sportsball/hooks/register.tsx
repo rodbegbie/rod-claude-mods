@@ -31,6 +31,7 @@ const HAS_LIVE_MINUTE: Record<Sport, boolean> = { basketball: false, football: t
 const TOAST_ON_SCORE: Record<Sport, boolean> = { basketball: false, football: true }
 
 let pendingPoll: { cancel: () => void } | null = null
+let pollGeneration = 0
 let helperUsable: boolean | null = null
 const attemptedLogos = new Set<string>()
 
@@ -297,13 +298,16 @@ function announcement(sport: Sport, previous: Reading | null, games: Games): str
 }
 
 function nextReading(result: LiveGame | null | 'error', team: Followed, previous: Reading | null, now: number): Reading | null {
+  const carried = previous?.sport === team.sport && previous.slug === team.slug ? previous : null
   if (result === 'error') {
-    if (!previous?.game) return previous
-    if (now - previous.at > STALE_MS) return { game: null, sport: team.sport, followedSide: null, isStale: false, at: now }
-    return { ...previous, isStale: true }
+    if (!carried?.game) return carried
+    if (now - carried.at > STALE_MS) {
+      return { game: null, sport: team.sport, slug: team.slug, followedSide: null, isStale: false, at: now }
+    }
+    return { ...carried, isStale: true }
   }
   const followedSide = result?.home === team.name ? 'home' : result?.away === team.name ? 'away' : null
-  return { game: result, sport: team.sport, followedSide, isStale: false, at: now }
+  return { game: result, sport: team.sport, slug: team.slug, followedSide, isStale: false, at: now }
 }
 
 function shortCompetition(name: string): string {
@@ -365,6 +369,8 @@ async function ensureColours($: EngineInterface, game: LiveGame): Promise<void> 
 }
 
 async function poll($: EngineInterface): Promise<void> {
+  const generation = ++pollGeneration
+  const isLatest = () => generation === pollGeneration
   pendingPoll?.cancel()
   pendingPoll = null
   const [team] = await followedTeams($)
@@ -374,15 +380,18 @@ async function poll($: EngineInterface): Promise<void> {
   }
   const games = await fetchGames($, team)
   const [current] = await followedTeams($)
-  if (current?.slug !== team.slug) return
   const now = await $.clock.now()
   const previous = await read($, reading)
+  if (!isLatest() || current?.slug !== team.slug || current.sport !== team.sport) return
   const next = nextReading(games === 'error' ? 'error' : games.live, team, previous, now)
   await update($, reading, () => next)
-  if (games !== 'error' && (await read($, isOn))) {
+  if (!isLatest()) return
+  if (games !== 'error' && (await read($, isOn)) && isLatest()) {
     const toast = announcement(team.sport, previous, games)
     if (toast) $.ui.toast(toast, { timeoutMs: TOAST_MS })
   }
+  if (!isLatest()) return
+  pendingPoll?.cancel()
   pendingPoll = $.clock.after(next?.game ? LIVE_POLL_MS : IDLE_POLL_MS, () => poll($))
   if (next?.game) {
     const game = next.game

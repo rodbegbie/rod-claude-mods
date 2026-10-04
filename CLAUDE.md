@@ -180,8 +180,11 @@ them, so a test must stub every event the mod touches or it fails with
   A status change and a score change in one poll give one toast, labelled
   by the status. The minute alone never toasts. There is no clock in
   `status_text`.
-- `poll` discards a result if the followed team changed while its fetch
-  was in flight. Keep that check if you touch it.
+- Each `poll` takes a generation number; only the latest run may
+  publish, toast and schedule, so an older fetch finishing late is
+  discarded, and the followed sport and slug are re-checked too. A
+  reading is only carried over as stale for the same sport and slug.
+  Keep these checks if you touch `poll` or `nextReading`.
 
 ## Git and PRs
 

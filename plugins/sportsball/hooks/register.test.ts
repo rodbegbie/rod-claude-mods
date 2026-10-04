@@ -1026,3 +1026,69 @@ test('a basketball score change still stays silent', async ($, on) => {
 
   expect(h.toasts).toEqual([])
 })
+
+test('a failed first fetch after switching teams does not keep the previous team scoreboard', async ($, on) => {
+  const routes: Record<string, Route> = {
+    [TEAM_ROUTE]: { body: schedule(liveMatch) },
+    'slug=atletico-atlanta': { status: 500, body: 'oops' },
+    ...searchRoutes([], [atlanta]),
+  }
+  harness(on, routes, { ...followingValkyries, ...colouredLogos })
+  await start($)
+  expect((await readingOf($)).game.home).toBe('Golden State Valkyries')
+
+  await run($, 'follow-team', 'atletico atlanta')
+
+  expect(await readingOf($)).toBeNull()
+})
+
+test('a failed fetch for the same team still keeps its last reading, dimmed', async ($, on) => {
+  const routes: Record<string, Route> = { [TEAM_ROUTE]: { body: schedule(liveMatch) } }
+  harness(on, routes, { ...followingValkyries, ...colouredLogos })
+  await start($)
+  routes[TEAM_ROUTE] = { status: 500, body: 'oops' }
+
+  await start($)
+
+  expect((await readingOf($)).game.home).toBe('Golden State Valkyries')
+  expect((await readingOf($)).isStale).toBe(true)
+})
+
+test('an older poll that finishes after a newer one for the same team is discarded', async ($, on) => {
+  let release!: () => void
+  let entered!: () => void
+  const gate = new Promise<void>(resolve => (release = resolve))
+  const fetching = new Promise<void>(resolve => (entered = resolve))
+  const routes: Record<string, Route> = { [TEAM_ROUTE]: { body: schedule(inPlay('3rd quarter', '10', '0')) } }
+  const h = harness(on, routes, { ...followingValkyries, ...colouredLogos })
+  await start($)
+  routes[TEAM_ROUTE] = { body: schedule(inPlay('3rd quarter', '12', '0')), gate, onFetch: entered }
+  const older = start($)
+  await fetching
+  routes[TEAM_ROUTE] = { body: schedule(inPlay('4th quarter', '14', '0')) }
+
+  await start($)
+  release()
+  await older
+
+  expect((await readingOf($)).game.statusText).toBe('4th quarter')
+  expect(readingWrites.map(r => r?.game?.statusText)).toEqual(['3rd quarter', '4th quarter'])
+  expect(h.toasts.map(toast => toast.text)).toEqual(['🏀 4th quarter: Golden State Valkyries 14 - 0 Las Vegas Aces'])
+  expect(h.delays).toEqual([30_000, 30_000])
+})
+
+test('a poll is discarded when the followed team changes sport but keeps its slug', async ($, on) => {
+  let release!: () => void
+  let entered!: () => void
+  const gate = new Promise<void>(resolve => (release = resolve))
+  const fetching = new Promise<void>(resolve => (entered = resolve))
+  const h = harness(on, { [TEAM_ROUTE]: { body: schedule(liveMatch), gate, onFetch: entered } }, followingValkyries)
+
+  const starting = start($)
+  await fetching
+  h.store.set('followed', [{ sport: 'football', ...valkyries }])
+  release()
+  await starting
+
+  expect(readingWrites.filter(r => r?.game)).toEqual([])
+})
