@@ -1,0 +1,7 @@
+Create a new Claude Code mod for me that displays above the textbox.  It's the help me track my Clause usage against the 5 hour and weekly limits of rmy Claude Pro subscription.
+
+For each limit, have a gauge that tells me what percentage of the limit I've reached.  The bar should get progressively more red as I get closer to the limit.  To the right of the bar, show the % of the limit I've reached, and text telling me how long until that session will be reset.
+
+---
+
+Open an entire trail for this work.
