@@ -70,8 +70,13 @@ empty when the team has no live game.
 - `/follow-team <name>` follows a team, for example
   `/follow-team golden state valkyries` or `/follow-team club atletico
   tigre`. It searches basketball and football together. If the name
-  matches several teams it lists them, with a sport emoji, and follows
-  none, so try a more specific name.
+  matches more than one team, even exactly, it asks which. Each choice
+  shows a sport emoji, the team name and the league of its latest game
+  (left off when the lookup fails or the team has no games). Up to four
+  teams are offered in a question dialog. More than that opens a pane
+  with a list, so none are cut off. Dismissing either follows nothing
+  and keeps your current team. A name that matches a single team is
+  followed straight away.
 - `/unfollow-team [name]` stops following.
 - `/sportsball` shows or hides the band. The followed team is kept
   across sessions either way.
