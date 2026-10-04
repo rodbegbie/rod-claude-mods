@@ -144,7 +144,8 @@ them, so a test must stub every event the mod touches or it fails with
   `HAS_LIVE_MINUTE` pay for the extra request. The match slug is the
   third segment of the match `url`; football URLs carry a trailing id
   that must not be sent. A failed lookup yields no minute and never
-  fails the poll.
+  fails the poll. `live_minute` is a string and is `"HT"` at half time,
+  so only digits with optional added time (`84`, `45+2`) are drawn.
 - `/follow-team` searches every sport in `SPORTS` (one request each, in
   order) and fails the whole lookup if any request fails. A sport needs
   an entry in `SPORTS` and in `SPORT_EMOJI`, and a `Sport` member in

@@ -911,3 +911,35 @@ test('a changing minute alone never toasts', async ($, on) => {
 
   expect(h.toasts).toEqual([])
 })
+
+test("half time's live_minute of HT is not drawn as a minute", async ($, on) => {
+  const routes: Record<string, Route> = { [MATCH_ROUTE]: detail('HT') }
+  footballHarness(on, routes)
+  routes['slug=atletico-atlanta'] = { body: schedule({ ...footballMatch, status_text: 'Half time' }) }
+
+  await start($)
+
+  const row = flatText(gameRow(await mountBand($)))
+  expect(row).toContain('· Half time ·')
+  expect(row).not.toContain('HT')
+})
+
+for (const [label, minute, shown] of [['stoppage time', '45+2', "45+2'"], ['padded digits', ' 67 ', "67'"], ['a number', 90, "90'"]] as const) {
+  test(`${label} is drawn as a minute`, async ($, on) => {
+    footballHarness(on, { [MATCH_ROUTE]: detail(minute) })
+
+    await start($)
+
+    expect(flatText(gameRow(await mountBand($)))).toContain(`2nd half ${shown}`)
+  })
+}
+
+for (const word of ['FT', 'ET', 'Break']) {
+  test(`a live_minute of ${word} is not drawn`, async ($, on) => {
+    footballHarness(on, { [MATCH_ROUTE]: detail(word) })
+
+    await start($)
+
+    expect(flatText(gameRow(await mountBand($)))).toContain('· 2nd half ·')
+  })
+}
