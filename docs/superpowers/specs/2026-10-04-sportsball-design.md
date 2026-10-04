@@ -88,9 +88,13 @@ reading are atoms, as in `pro-limits`.
 One row, `wrap="truncate-end"`, reserving `COLLAPSE_CONTROL_COLUMNS` as
 `context-bar` and `pro-limits` do:
 
+<!-- markdownlint-disable MD013 -->
+
 ```text
 Golden State Valkyries 34 - 31 Las Vegas Aces · Half time · WNBA · via SportScore
 ```
+
+<!-- markdownlint-enable MD013 -->
 
 - Each team name is drawn in that team's logo colour. The followed team's
   score is bold.
