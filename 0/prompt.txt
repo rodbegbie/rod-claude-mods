@@ -1,0 +1,1 @@
+Layout:  If there's only game, then the attribution can be on the same row as the score.  It should be on the same row as the final score in the window.
