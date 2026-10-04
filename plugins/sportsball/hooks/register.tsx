@@ -1,4 +1,12 @@
-import type { Register } from 'claude-code'
+import { atom, read, update } from 'claude-code'
+import type { EngineInterface, Register } from 'claude-code'
+
+import type { Followed } from '../types'
+
+const isOn = atom({ plugin: 'sportsball', key: 'isOn' } as const, true)
+
+const SEARCH_URL = 'https://sportscore.com/api/v1/search/'
+const MIN_NAME_LENGTH = 2
 
 export const LOGO_COLOUR_SCRIPT = String.raw`
 import struct
@@ -139,4 +147,82 @@ if __name__ == "__main__":
     main()
 `
 
-export const register: Register = () => {}
+type TeamHit = { slug: string; name: string }
+
+function isTeamHit(value: unknown): value is TeamHit {
+  const hit = value as TeamHit | null
+  return typeof hit?.slug === 'string' && typeof hit?.name === 'string'
+}
+
+async function searchTeams($: EngineInterface, name: string): Promise<TeamHit[] | null> {
+  try {
+    const response = await $.http.fetch(`${SEARCH_URL}?q=${encodeURIComponent(name)}&sport=basketball`)
+    if (!response.ok) return null
+    const teams = (JSON.parse(response.text) as { teams?: unknown }).teams
+    return Array.isArray(teams) ? teams.filter(isTeamHit) : null
+  } catch {
+    return null
+  }
+}
+
+async function followedTeams($: EngineInterface): Promise<Followed[]> {
+  const stored = await $.store.get('followed')
+  if (!Array.isArray(stored)) return []
+  return stored.filter(item => isTeamHit(item) && (item as Followed).sport === 'basketball')
+}
+
+export const register: Register = on => {
+  on('session.start', async ($, e, next) => {
+    await $.command.register({
+      name: 'follow-team',
+      description: 'Follow a team and show its live score above the prompt',
+      argumentHint: '<team name>',
+    })
+    await $.command.register({
+      name: 'unfollow-team',
+      description: 'Stop following the team shown above the prompt',
+      argumentHint: '[team name]',
+    })
+    await $.command.register({
+      name: 'sportsball',
+      description: 'Show or hide the live score above the prompt',
+    })
+
+    return next(e)
+  })
+
+  on('command.run', { command: 'follow-team' }, async ($, e) => {
+    const name = e.args.trim()
+    if (name.length < MIN_NAME_LENGTH) {
+      return { text: 'Usage: /follow-team <team name> (at least 2 characters)' }
+    }
+    const hits = await searchTeams($, name)
+    if (hits === null) return { text: "Couldn't look up that team just now. Try again shortly." }
+    if (hits.length === 0) return { text: `No team matched "${name}".` }
+    if (hits.length > 1) {
+      return { text: `Several teams match "${name}": ${hits.map(h => h.name).join(', ')}. Try a more specific name.` }
+    }
+    const [hit] = hits
+    await $.store.set('followed', [{ sport: 'basketball', slug: hit.slug, name: hit.name }])
+
+    return { text: `Now following ${hit.name}.` }
+  })
+
+  on('command.run', { command: 'unfollow-team' }, async ($, e) => {
+    const [team] = await followedTeams($)
+    if (!team) return { text: 'Not following any team.' }
+    const name = e.args.trim()
+    if (name && !`${team.name} ${team.slug}`.toLowerCase().includes(name.toLowerCase())) {
+      return { text: `Not following ${name}.` }
+    }
+    await $.store.set('followed', [])
+
+    return { text: `Stopped following ${team.name}.` }
+  })
+
+  on('command.run', { command: 'sportsball' }, async $ => {
+    const now = await update($, isOn, v => !v)
+
+    return { text: `Sportsball ${now ? 'on' : 'off'}.` }
+  })
+}
