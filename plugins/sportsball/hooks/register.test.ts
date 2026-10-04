@@ -943,3 +943,86 @@ for (const word of ['FT', 'ET', 'Break']) {
     expect(flatText(gameRow(await mountBand($)))).toContain('· 2nd half ·')
   })
 }
+
+const footballScoreRig = (on: any, first: { home?: string; away?: string; minute?: string | null; statusText?: string }) => {
+  const routes: Record<string, Route> = {}
+  const set = (next: { home?: string; away?: string; minute?: string | null; statusText?: string }) => {
+    routes['slug=atletico-atlanta'] = {
+      body: schedule({ ...footballMatch, home_score: next.home ?? '1', away_score: next.away ?? '2', status_text: next.statusText ?? '2nd half' }),
+    }
+    routes[MATCH_ROUTE] = detail(next.minute === undefined ? null : next.minute)
+  }
+  set(first)
+  const h = harness(on, routes, { followed: [{ sport: 'football', ...atlanta }] })
+  return { h, set }
+}
+
+test('a football goal toasts the new score with the minute', async ($, on) => {
+  const { h, set } = footballScoreRig(on, { minute: '59' })
+  await start($)
+  set({ away: '3', minute: '60' })
+
+  await start($)
+
+  expect(h.toasts).toEqual([{ text: "⚽ Goal 60': Atletico Rafaela 1 - 3 Atletico Atlanta", timeoutMs: 8000 }])
+})
+
+test('a football goal toast has no minute when there is none', async ($, on) => {
+  const { h, set } = footballScoreRig(on, { minute: null })
+  await start($)
+  set({ home: '2', minute: null })
+
+  await start($)
+
+  expect(h.toasts.map(toast => toast.text)).toEqual(['⚽ Goal: Atletico Rafaela 2 - 2 Atletico Atlanta'])
+})
+
+test('a score that goes down is a score change, not a goal', async ($, on) => {
+  const { h, set } = footballScoreRig(on, { away: '3', minute: '70' })
+  await start($)
+  set({ away: '2', minute: '72' })
+
+  await start($)
+
+  expect(h.toasts.map(toast => toast.text)).toEqual(["⚽ Score change 72': Atletico Rafaela 1 - 2 Atletico Atlanta"])
+})
+
+test('a goal and a new period in one poll give one toast, labelled by the period', async ($, on) => {
+  const { h, set } = footballScoreRig(on, { minute: '45+' })
+  await start($)
+  set({ away: '3', statusText: 'Half time', minute: 'HT' })
+
+  await start($)
+
+  expect(h.toasts.map(toast => toast.text)).toEqual(['⚽ Half time: Atletico Rafaela 1 - 3 Atletico Atlanta'])
+})
+
+test('a football period toast includes the minute when there is one', async ($, on) => {
+  const { h, set } = footballScoreRig(on, { statusText: 'Half time', minute: 'HT' })
+  await start($)
+  set({ statusText: '2nd half', minute: '46' })
+
+  await start($)
+
+  expect(h.toasts.map(toast => toast.text)).toEqual(["⚽ 2nd half 46': Atletico Rafaela 1 - 2 Atletico Atlanta"])
+})
+
+test('an unchanged football score stays silent as the minute ticks', async ($, on) => {
+  const { h, set } = footballScoreRig(on, { minute: '59' })
+  await start($)
+  set({ minute: '60' })
+
+  await start($)
+
+  expect(h.toasts).toEqual([])
+})
+
+test('a basketball score change still stays silent', async ($, on) => {
+  const { h, next } = toastRig(on, [inPlay('3rd quarter', '40', '38')])
+  await start($)
+  next(inPlay('3rd quarter', '43', '38'))
+
+  await start($)
+
+  expect(h.toasts).toEqual([])
+})

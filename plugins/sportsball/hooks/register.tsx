@@ -28,6 +28,7 @@ const SPORTSCORE_URL = 'https://sportscore.com'
 const SPORTS: Sport[] = ['basketball', 'football']
 const SPORT_EMOJI: Record<Sport, string> = { basketball: '🏀', football: '⚽' }
 const HAS_LIVE_MINUTE: Record<Sport, boolean> = { basketball: false, football: true }
+const TOAST_ON_SCORE: Record<Sport, boolean> = { basketball: false, football: true }
 
 let pendingPoll: { cancel: () => void } | null = null
 let helperUsable: boolean | null = null
@@ -269,11 +270,26 @@ function scoreline(sport: Sport, label: string, game: LiveGame): string {
   return `${SPORT_EMOJI[sport]} ${label}: ${game.home} ${game.homeScore} - ${game.awayScore} ${game.away}`
 }
 
+function withMinute(label: string, game: LiveGame): string {
+  return game.minute === '' ? label : `${label} ${game.minute}'`
+}
+
+function hasScored(before: LiveGame, after: LiveGame): boolean {
+  return Number(after.homeScore) > Number(before.homeScore) || Number(after.awayScore) > Number(before.awayScore)
+}
+
 function announcement(sport: Sport, previous: Reading | null, games: Games): string | null {
   const before = previous?.game
   if (!before) return null
-  if (games.live?.key === before.key) {
-    return games.live.statusText !== before.statusText ? scoreline(sport, games.live.statusText, games.live) : null
+  const live = games.live
+  if (live?.key === before.key) {
+    if (live.statusText !== before.statusText) return scoreline(sport, withMinute(live.statusText, live), live)
+    const scoreChanged = live.homeScore !== before.homeScore || live.awayScore !== before.awayScore
+    if (TOAST_ON_SCORE[sport] && scoreChanged) {
+      return scoreline(sport, withMinute(hasScored(before, live) ? 'Goal' : 'Score change', live), live)
+    }
+
+    return null
   }
   const final = games.finished.find(game => game.key === before.key)
 
