@@ -1,0 +1,13 @@
+Can you enable the hot loading of the plugin in this session so I can test it?
+
+---
+
+Cool. That seems to be working with all my tests. I got this error one time "⏺ sportsball: ui.select hook skipped: threw ui.press/ui.input/ui.select: no handler is held under handle 2"
+
+---
+
+Is there any sort options on the search API?  I just tried to add the Glasgow team Rangers, and searching for "Rangers" and "Glasgow Rangers" didn't work.  "Rangers" sorted alphabetically but stopped early in the alphabet.  "Glasgow Rangers" found affiliated teams but not the men's team.  Turns out they're "Rangers F.C." in the database (slug: `rangers-fc`)
+
+---
+
+OK, let's do 1 for now. I might look for alternative API providers later.  File a github issue for me to follow up on that.
