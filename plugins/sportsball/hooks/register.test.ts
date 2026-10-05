@@ -75,7 +75,20 @@ function harness(on: any, routes: Record<string, Route>, initial: Record<string,
   const toasts: { text: string; timeoutMs?: number }[] = []
   on('ui.toast', async (_$: any, e: any) => (toasts.push({ text: e.text, timeoutMs: e.timeoutMs }), { value: undefined }))
   on('ui.render', async () => ({ type: 'Text', children: ['ENGINE'] }))
-  return { store, urls, delays, clock, proc, toasts }
+  const asks = {
+    calls: [] as { question: string; labels: string[] }[],
+    answer: undefined as string | undefined,
+  }
+  on('tool.call', async (_$: any, e: any) => {
+    const [asked] = e.questions
+    asks.calls.push({ question: asked.question, labels: asked.options.map((o: any) => o.label) })
+    if (asks.answer === undefined) return { deny: 'dismissed' }
+    return { result: { questions: e.questions, answers: { [asked.question]: asks.answer } } }
+  })
+  const panes = { opened: [] as any[], closed: [] as any[] }
+  on('ui.open', async (_$: any, e: any) => (panes.opened.push(e), { value: { isPlaced: true } }))
+  on('ui.close', async (_$: any, e: any) => (panes.closed.push(e), { value: undefined }))
+  return { store, urls, delays, clock, proc, toasts, asks, panes }
 }
 
 const liveMatch = {
@@ -102,14 +115,223 @@ const readingOf = async (_$: any) => states.reading ?? null
 const start = ($: any) => $.session.start({ source: 'startup', cwd: '/tmp' })
 const run = ($: any, command: string, args = '') => $.command.run({ command, args })
 
-test('follow-team with several hits lists them and follows nothing', async ($, on) => {
-  const h = harness(on, { ...searchRoutes([valkyries, bluefire]) })
+const leagueRoute = (slug: string, competition: string, resolvedName?: string): Record<string, Route> => ({
+  [`slug=${slug}&limit=1`]: {
+    body: { sport: 'basketball', team: { slug, name: resolvedName }, count: 1, matches: [{ competition }] },
+  },
+})
+
+const wrongTeam = 'Someone Else Entirely'
+
+test('follow-team with several hits asks which, naming each team league, and follows the pick', async ($, on) => {
+  const h = harness(on, {
+    ...searchRoutes([valkyries, bluefire]),
+    ...leagueRoute(valkyries.slug, 'WNBA'),
+    ...leagueRoute(bluefire.slug, 'Pro Women'),
+  })
+  h.asks.answer = '🏀 Bluefire Valkyries (W) · Pro Women'
   await start($)
 
   const { text } = await run($, 'follow-team', 'valkyries')
 
+  expect(h.asks.calls).toHaveLength(1)
+  expect(h.asks.calls[0].labels).toEqual(['🏀 Golden State Valkyries · WNBA', '🏀 Bluefire Valkyries (W) · Pro Women'])
+  expect(text).toContain('Now following Bluefire Valkyries (W)')
+  expect(h.store.get('followed')).toEqual([{ sport: 'basketball', ...bluefire }])
+})
+
+test('an exact name match still asks when other teams match too', async ($, on) => {
+  const atletico = { name: 'Atletico', slug: 'atletico' }
+  const aguada = { name: 'Atletico Aguada', slug: 'atletico-aguada' }
+  const h = harness(on, searchRoutes([atletico, aguada]))
+  h.asks.answer = '🏀 Atletico Aguada'
+  await start($)
+
+  const { text } = await run($, 'follow-team', 'atletico')
+
+  expect(h.asks.calls[0].labels).toEqual(['🏀 Atletico', '🏀 Atletico Aguada'])
+  expect(text).toContain('Now following Atletico Aguada')
+})
+
+test('a team whose league lookup fails is offered by sport and name alone', async ($, on) => {
+  const h = harness(on, { ...searchRoutes([valkyries, bluefire]), ...leagueRoute(valkyries.slug, 'WNBA') })
+  await start($)
+
+  await run($, 'follow-team', 'valkyries')
+
+  expect(h.asks.calls[0].labels).toEqual(['🏀 Golden State Valkyries · WNBA', '🏀 Bluefire Valkyries (W)'])
+})
+
+test('hits repeating a sport and slug are one team', async ($, on) => {
+  const h = harness(on, { ...searchRoutes([], [tigre, tigre, { name: 'Tigre B', slug: 'tigre-b' }]) })
+  h.asks.answer = '⚽ Tigre B'
+  await start($)
+
+  await run($, 'follow-team', 'tigre')
+
+  expect(h.asks.calls[0].labels).toEqual([`⚽ ${tigre.name}`, '⚽ Tigre B'])
+})
+
+test('a search that finds one team twice follows it without asking', async ($, on) => {
+  const h = harness(on, { ...searchRoutes([], [tigre, tigre]) })
+  await start($)
+
+  const { text } = await run($, 'follow-team', 'tigre')
+
+  expect(h.asks.calls).toHaveLength(0)
+  expect(text).toContain(`Now following ${tigre.name}`)
+})
+
+test('different teams with the same label are told apart by their slug', async ($, on) => {
+  const first = { name: 'Atletico Basket U20', slug: 'atletico-basket-u20' }
+  const second = { name: 'Atletico Basket U20', slug: 'atletico-basket-u20-2' }
+  const h = harness(on, searchRoutes([first, second]))
+  h.asks.answer = '🏀 Atletico Basket U20 (atletico-basket-u20-2)'
+  await start($)
+
+  await run($, 'follow-team', 'atletico basket')
+
+  expect(h.asks.calls[0].labels).toEqual(['🏀 Atletico Basket U20 (atletico-basket-u20)', '🏀 Atletico Basket U20 (atletico-basket-u20-2)'])
+  expect(h.store.get('followed')).toEqual([{ sport: 'basketball', ...second }])
+})
+
+const manyTeams = (count: number) => Array.from({ length: count }, (_, i) => ({ name: `Atletico ${i + 1}`, slug: `atletico-${i + 1}` }))
+
+async function mountTeamPane($: any) {
+  return $.ui.mount({ plugin: 'sportsball', surface: 'terminal', component: 'Pane', requestId: 'sportsball-teams', props: {} })
+}
+
+test('more than four hits open a pane instead of asking', async ($, on) => {
+  const teams = manyTeams(5)
+  const h = harness(on, searchRoutes(teams, []))
+  await start($)
+
+  const { text } = await run($, 'follow-team', 'atletico')
+
+  expect(h.asks.calls).toHaveLength(0)
+  expect(h.panes.opened).toHaveLength(1)
+  expect(h.panes.opened[0]).toMatchObject({ id: 'sportsball-teams', focus: true, closeOnEscape: true })
+  expect(text).toContain('Pick a team')
+  expect(h.store.get('followed')).toBeUndefined()
+})
+
+test('the team pane offers every hit and picking one follows it and closes the pane', async ($, on) => {
+  const teams = manyTeams(6)
+  const h = harness(on, searchRoutes(teams, []))
+  await start($)
+  await run($, 'follow-team', 'atletico')
+
+  const pane = await mountTeamPane($)
+  const select = walk(await pane.drawn()).find(n => n.type === 'Select')
+  expect(select?.props?.options.map((o: any) => o.label)).toEqual(teams.map(t => `🏀 ${t.name}`))
+
+  await pane.select({ key: select?.props?.key, value: select?.props?.options[3].value })
+
+  expect(h.store.get('followed')).toEqual([{ sport: 'basketball', ...teams[3] }])
+  expect(h.panes.closed.map(closed => closed.id)).toEqual(['sportsball-teams'])
+})
+
+test('a team pane with nothing to pick draws an empty box, not an engine fallback', async ($, on) => {
+  harness(on, searchRoutes([]))
+  await start($)
+
+  const tree = await (await mountTeamPane($)).drawn()
+
+  expect(tree.type).toBe('Box')
+  expect(walk(tree).some(n => n.type === 'Select')).toBe(false)
+})
+
+test('a lone hit whose lookup returns a different team is not followed', async ($, on) => {
+  const h = harness(on, { ...searchRoutes([bluefire]), ...leagueRoute(bluefire.slug, 'Pro Women', wrongTeam) })
+  await start($)
+
+  const { text } = await run($, 'follow-team', 'bluefire')
+
+  expect(text).toContain("Can't follow Bluefire Valkyries (W)")
+  expect(text).toContain('different team')
+  expect(h.store.get('followed')).toBeUndefined()
+  expect(h.asks.calls).toHaveLength(0)
+})
+
+test('a lone hit whose lookup fails is still followed', async ($, on) => {
+  const h = harness(on, searchRoutes([bluefire]))
+  await start($)
+
+  const { text } = await run($, 'follow-team', 'bluefire')
+
+  expect(text).toContain('Now following Bluefire Valkyries (W)')
+  expect(h.store.get('followed')).toEqual([{ sport: 'basketball', ...bluefire }])
+})
+
+test('a hit whose lookup returns a different team is left out of the question and named', async ($, on) => {
+  const third = { name: 'Third Valkyries', slug: 'third-valkyries' }
+  const h = harness(on, {
+    ...searchRoutes([valkyries, bluefire, third]),
+    ...leagueRoute(valkyries.slug, 'WNBA', valkyries.name),
+    ...leagueRoute(bluefire.slug, 'Pro Women', wrongTeam),
+    ...leagueRoute(third.slug, 'Third League', third.name),
+  })
+  h.asks.answer = '🏀 Third Valkyries · Third League'
+  await start($)
+
+  const { text } = await run($, 'follow-team', 'valkyries')
+
+  expect(h.asks.calls[0].labels).toEqual(['🏀 Golden State Valkyries · WNBA', '🏀 Third Valkyries · Third League'])
+  expect(h.asks.calls[0].question).toContain('Bluefire Valkyries (W)')
+  expect(text).toContain('Now following Third Valkyries')
+})
+
+test('when only one hit survives the lookup check it is followed and the other is named', async ($, on) => {
+  const h = harness(on, {
+    ...searchRoutes([valkyries, bluefire]),
+    ...leagueRoute(valkyries.slug, 'WNBA', valkyries.name),
+    ...leagueRoute(bluefire.slug, 'Pro Women', wrongTeam),
+  })
+  await start($)
+
+  const { text } = await run($, 'follow-team', 'valkyries')
+
+  expect(h.asks.calls).toHaveLength(0)
+  expect(text).toContain('Now following Golden State Valkyries')
+  expect(text).toContain('Bluefire Valkyries (W)')
+  expect(h.store.get('followed')).toEqual([{ sport: 'basketball', ...valkyries }])
+})
+
+test('when every hit resolves to a different team nothing is followed', async ($, on) => {
+  const h = harness(on, {
+    ...searchRoutes([valkyries, bluefire]),
+    ...leagueRoute(valkyries.slug, 'WNBA', wrongTeam),
+    ...leagueRoute(bluefire.slug, 'Pro Women', wrongTeam),
+  })
+  await start($)
+
+  const { text } = await run($, 'follow-team', 'valkyries')
+
+  expect(text).toContain("Can't follow")
   expect(text).toContain('Golden State Valkyries')
   expect(text).toContain('Bluefire Valkyries (W)')
+  expect(h.store.get('followed')).toBeUndefined()
+  expect(h.asks.calls).toHaveLength(0)
+})
+
+test('dismissing the team question follows nothing and keeps the current team', async ($, on) => {
+  const h = harness(on, searchRoutes([valkyries, bluefire]), followingValkyries)
+  await start($)
+
+  const { text } = await run($, 'follow-team', 'valkyries')
+
+  expect(text).toBe('No team followed.')
+  expect(h.store.get('followed')).toEqual(followingValkyries.followed)
+})
+
+test('free text that matches no team label follows nothing', async ($, on) => {
+  const h = harness(on, searchRoutes([valkyries, bluefire]))
+  h.asks.answer = 'the other one'
+  await start($)
+
+  const { text } = await run($, 'follow-team', 'valkyries')
+
+  expect(text).toBe('No team followed.')
   expect(h.store.get('followed')).toBeUndefined()
 })
 
@@ -352,7 +574,7 @@ test('a poll that returns after switching teams is discarded', async ($, on) => 
     on,
     {
       [TEAM_ROUTE]: { body: schedule(liveMatch), gate, onFetch: entered },
-      'slug=bluefire-valkyries-w': { body: schedule(finishedMatch) },
+      'slug=bluefire-valkyries-w': { body: { ...schedule(finishedMatch), team: bluefire } },
       ...searchRoutes([bluefire]),
     },
     followingValkyries,
@@ -796,14 +1018,13 @@ test('follow-team follows a football team and records its sport', async ($, on) 
   expect(h.store.get('followed')).toEqual([{ sport: 'football', ...atlanta }])
 })
 
-test('hits from both sports are listed with their sport emoji', async ($, on) => {
+test('hits from both sports are offered with their sport emoji', async ($, on) => {
   const h = harness(on, searchRoutes([valkyries], [tigre]))
   await start($)
 
-  const { text } = await run($, 'follow-team', 'x1')
+  await run($, 'follow-team', 'x1')
 
-  expect(text).toContain('🏀 Golden State Valkyries')
-  expect(text).toContain('⚽ Club Atletico Tigre')
+  expect(h.asks.calls[0].labels).toEqual(['🏀 Golden State Valkyries', '⚽ Club Atletico Tigre'])
   expect(h.store.get('followed')).toBeUndefined()
 })
 

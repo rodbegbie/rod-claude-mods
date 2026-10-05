@@ -161,8 +161,40 @@ them, so a test must stub every event the mod touches or it fails with
   `struct.py` in the user's project would run in place of the stdlib.
 - Colour extraction runs from `$.clock.after(0, ...)`, not inside `poll`,
   so session start and `/follow-team` never wait on the helper.
-- `/follow-team` follows a lone hit, or the one hit whose name equals the
-  typed name; several other matches get a list and no follow.
+- `/follow-team` follows a lone hit at once; two or more hits, even with
+  one exact name match, get a picker. Search hits are made unique by
+  sport and slug first, because the API can return one team twice
+  (`arsenal` comes back with two entries sharing a slug). Labels that
+  still collide get the slug appended.
+- Each picker label carries the league, read from the first match of
+  `/api/v1/team/?limit=1` (the same `competition` as `limit=50` on every
+  team probed). A team with no matches, or a failed lookup, gets no
+  league. The search API returns only name, slug, logo and url, and
+  nothing gives a country.
+- The search API is alphabetical by name with no sort option, caps at 8
+  hits per sport (20 with `limit=20` or more, which is the ceiling), and
+  ignores `page` and `offset`. Every word must appear in the name and
+  punctuation counts: `rangers f.c.` finds Rangers F.C., `rangers fc`
+  does not.
+- `/api/v1/team/` resolves by slug alone and ignores the id in a hit's
+  `url`, and some slugs clash: the search's "Rangers F.C." (`rangers-fc`)
+  resolves to "Ranger's FC" in Andorra, and basketball's `rangers-fc`
+  to a Chilean team. `lookupTeam` compares the resolved `team.name` with
+  the hit's name and leaves a mismatch out of the picker; a failed
+  lookup counts as no mismatch. Across 83 live hits only that one
+  differed, so the exact comparison has not hidden a real team.
+- Four or fewer hits use `$.ui.ask`. The engine refuses more than four
+  options, and the handler's `.catch` would hide that as "No team
+  followed", so the split at `MAX_ASK_OPTIONS` matters. More hits open
+  the `sportsball-teams` pane drawn by a `ui.render` hook, with the
+  candidates in the `choices` atom and the pick handled by a `ui.select`
+  hook, which is the only place with `$`. A `Select` with no options
+  makes the render hook throw, so the pane draws an empty `Box` instead.
+- In tests, `$.ui.ask` is a `tool.call` of `AskUserQuestion`: its
+  questions sit flat on the event (`e.questions`), and `{ deny }` is a
+  dismissal. Mount the pane with a top-level `requestId` (not in
+  `props`) or the hook is never selected, and `pane.select({ key,
+  value })` makes a pick.
 - The script only accepts `https://` URLs because the URLs come from API
   data. It decodes 8-bit RGB and RGBA PNGs without interlacing, which
   covers every logo checked; anything else falls back to no colour.

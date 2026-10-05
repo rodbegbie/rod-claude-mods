@@ -1,16 +1,20 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Followed, LiveGame, Reading, Sport } from '../types'
+import type { Choice, Followed, LiveGame, Reading, Sport } from '../types'
 
 const isOn = atom({ plugin: 'sportsball', key: 'isOn' } as const, true)
 const reading = atom({ plugin: 'sportsball', key: 'reading' } as const, null)
 const colours = atom({ plugin: 'sportsball', key: 'colours' } as const, {})
+const choices = atom({ plugin: 'sportsball', key: 'choices' } as const, [])
 
 const SEARCH_URL = 'https://sportscore.com/api/v1/search/'
 const TEAM_URL = 'https://sportscore.com/api/v1/team/'
 const MATCH_URL = 'https://sportscore.com/api/v1/match/'
 const MIN_NAME_LENGTH = 2
+const MAX_ASK_OPTIONS = 4
+const TEAM_PANE = 'sportsball-teams'
+const TEAM_SELECT = 'team'
 const LIVE_POLL_MS = 30_000
 const IDLE_POLL_MS = 300_000
 const STALE_MS = 10 * 60_000
@@ -192,6 +196,18 @@ async function searchSport($: EngineInterface, name: string, sport: Sport): Prom
   }
 }
 
+function distinctTeams(hits: TeamHit[]): TeamHit[] {
+  const seen = new Set<string>()
+
+  return hits.filter(hit => {
+    const key = `${hit.sport}/${hit.slug}`
+    if (seen.has(key)) return false
+    seen.add(key)
+
+    return true
+  })
+}
+
 async function searchTeams($: EngineInterface, name: string): Promise<TeamHit[] | null> {
   const hits: TeamHit[] = []
   for (const sport of SPORTS) {
@@ -200,8 +216,42 @@ async function searchTeams($: EngineInterface, name: string): Promise<TeamHit[] 
     hits.push(...found)
   }
 
-  return hits
+  return distinctTeams(hits)
 }
+
+type Lookup = { league: string; isOtherTeam: boolean }
+
+async function lookupTeam($: EngineInterface, hit: TeamHit): Promise<Lookup> {
+  const unknown: Lookup = { league: '', isOtherTeam: false }
+  try {
+    const response = await $.http.fetch(`${TEAM_URL}?sport=${hit.sport}&slug=${encodeURIComponent(hit.slug)}&limit=1`)
+    if (!response.ok) return unknown
+    const body = JSON.parse(response.text) as { team?: { name?: unknown }; matches?: unknown }
+    const resolved = body.team?.name
+
+    return {
+      league: Array.isArray(body.matches) ? text(body.matches[0]?.competition) : '',
+      isOtherTeam: typeof resolved === 'string' && resolved.trim() !== hit.name.trim(),
+    }
+  } catch {
+    return unknown
+  }
+}
+
+function pickLabels(hits: TeamHit[], leagues: string[]): string[] {
+  const labels = hits.map((hit, i) => [`${SPORT_EMOJI[hit.sport]} ${hit.name}`, leagues[i]].filter(Boolean).join(SEPARATOR))
+
+  return labels.map((label, i) => (labels.indexOf(label) === labels.lastIndexOf(label) ? label : `${label} (${hits[i].slug})`))
+}
+
+async function follow($: EngineInterface, hit: TeamHit): Promise<string> {
+  await $.store.set('followed', [{ sport: hit.sport, slug: hit.slug, name: hit.name }])
+  await poll($)
+
+  return `Now following ${hit.name}.`
+}
+
+const choiceValue = (choice: TeamHit) => `${choice.sport}/${choice.slug}`
 
 async function followedTeams($: EngineInterface): Promise<Followed[]> {
   const stored = await $.store.get('followed')
@@ -429,16 +479,46 @@ export const register: Register = on => {
     const hits = await searchTeams($, name)
     if (hits === null) return { text: "Couldn't look up that team just now. Try again shortly." }
     if (hits.length === 0) return { text: `No team matched "${name}".` }
-    const exact = hits.filter(h => h.name.toLowerCase() === name.toLowerCase())
-    const chosen = hits.length === 1 ? hits : exact.length === 1 ? exact : null
-    if (chosen === null) {
-      return { text: `Several teams match "${name}": ${hits.map(h => `${SPORT_EMOJI[h.sport]} ${h.name}`).join(', ')}. Try a more specific name.` }
-    }
-    const [hit] = chosen
-    await $.store.set('followed', [{ sport: hit.sport, slug: hit.slug, name: hit.name }])
-    await poll($)
+    const lookups = await Promise.all(hits.map(h => lookupTeam($, h)))
+    const offered = hits.filter((_, i) => !lookups[i].isOtherTeam)
+    const skipped = hits.filter((_, i) => lookups[i].isOtherTeam).map(h => h.name)
+    const skippedNote = skipped.length > 0 ? ` Left out because SportScore's lookup returns a different team: ${skipped.join(', ')}.` : ''
+    if (offered.length === 0) return { text: `Can't follow ${skipped.join(', ')}: SportScore's lookup returns a different team.` }
+    if (offered.length === 1) return { text: `${await follow($, offered[0])}${skippedNote}` }
 
-    return { text: `Now following ${hit.name}.` }
+    const labels = pickLabels(offered, lookups.filter(l => !l.isOtherTeam).map(l => l.league))
+    if (offered.length > MAX_ASK_OPTIONS) {
+      await update($, choices, () => offered.map((h, i): Choice => ({ ...h, label: labels[i] })))
+      await $.ui.open({ id: TEAM_PANE, title: `Teams matching "${name}"`, focus: true, closeOnEscape: true })
+
+      return { text: `Pick a team from the list.${skippedNote}` }
+    }
+    const answer = await $.ui.ask(`Which team matches "${name}"?${skippedNote}`, { options: labels, header: 'Team' }).catch(() => null)
+    const picked = offered.find((_, i) => labels[i] === answer)
+
+    return { text: picked ? await follow($, picked) : 'No team followed.' }
+  })
+
+  on('ui.render', { component: 'Pane', requestId: TEAM_PANE }, async ($, e) => {
+    const { Box, Select } = $.ui.resolve(e)
+    const options = (await read($, choices)).map(choice => ({ value: choiceValue(choice), label: choice.label }))
+
+    return (
+      <Box flexDirection="column">
+        {options.length > 0 && <Select key={TEAM_SELECT} autoFocus options={options} onSelect={() => {}} />}
+      </Box>
+    )
+  })
+
+  on('ui.select', { element: TEAM_SELECT }, async ($, e, next) => {
+    const picked = (await read($, choices)).find(choice => choiceValue(choice) === e.value)
+    if (picked) {
+      await update($, choices, () => [])
+      await $.ui.close({ id: TEAM_PANE })
+      $.ui.toast(await follow($, picked))
+    }
+
+    return next(e)
   })
 
   on('command.run', { command: 'unfollow-team' }, async ($, e) => {
