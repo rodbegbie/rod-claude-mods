@@ -115,9 +115,13 @@ const readingOf = async (_$: any) => states.reading ?? null
 const start = ($: any) => $.session.start({ source: 'startup', cwd: '/tmp' })
 const run = ($: any, command: string, args = '') => $.command.run({ command, args })
 
-const leagueRoute = (slug: string, competition: string): Record<string, Route> => ({
-  [`slug=${slug}&limit=1`]: { body: { sport: 'basketball', team: { slug }, count: 1, matches: [{ competition }] } },
+const leagueRoute = (slug: string, competition: string, resolvedName?: string): Record<string, Route> => ({
+  [`slug=${slug}&limit=1`]: {
+    body: { sport: 'basketball', team: { slug, name: resolvedName }, count: 1, matches: [{ competition }] },
+  },
 })
+
+const wrongTeam = 'Someone Else Entirely'
 
 test('follow-team with several hits asks which, naming each team league, and follows the pick', async ($, on) => {
   const h = harness(on, {
@@ -235,6 +239,79 @@ test('a team pane with nothing to pick draws an empty box, not an engine fallbac
 
   expect(tree.type).toBe('Box')
   expect(walk(tree).some(n => n.type === 'Select')).toBe(false)
+})
+
+test('a lone hit whose lookup returns a different team is not followed', async ($, on) => {
+  const h = harness(on, { ...searchRoutes([bluefire]), ...leagueRoute(bluefire.slug, 'Pro Women', wrongTeam) })
+  await start($)
+
+  const { text } = await run($, 'follow-team', 'bluefire')
+
+  expect(text).toContain("Can't follow Bluefire Valkyries (W)")
+  expect(text).toContain('different team')
+  expect(h.store.get('followed')).toBeUndefined()
+  expect(h.asks.calls).toHaveLength(0)
+})
+
+test('a lone hit whose lookup fails is still followed', async ($, on) => {
+  const h = harness(on, searchRoutes([bluefire]))
+  await start($)
+
+  const { text } = await run($, 'follow-team', 'bluefire')
+
+  expect(text).toContain('Now following Bluefire Valkyries (W)')
+  expect(h.store.get('followed')).toEqual([{ sport: 'basketball', ...bluefire }])
+})
+
+test('a hit whose lookup returns a different team is left out of the question and named', async ($, on) => {
+  const third = { name: 'Third Valkyries', slug: 'third-valkyries' }
+  const h = harness(on, {
+    ...searchRoutes([valkyries, bluefire, third]),
+    ...leagueRoute(valkyries.slug, 'WNBA', valkyries.name),
+    ...leagueRoute(bluefire.slug, 'Pro Women', wrongTeam),
+    ...leagueRoute(third.slug, 'Third League', third.name),
+  })
+  h.asks.answer = '🏀 Third Valkyries · Third League'
+  await start($)
+
+  const { text } = await run($, 'follow-team', 'valkyries')
+
+  expect(h.asks.calls[0].labels).toEqual(['🏀 Golden State Valkyries · WNBA', '🏀 Third Valkyries · Third League'])
+  expect(h.asks.calls[0].question).toContain('Bluefire Valkyries (W)')
+  expect(text).toContain('Now following Third Valkyries')
+})
+
+test('when only one hit survives the lookup check it is followed and the other is named', async ($, on) => {
+  const h = harness(on, {
+    ...searchRoutes([valkyries, bluefire]),
+    ...leagueRoute(valkyries.slug, 'WNBA', valkyries.name),
+    ...leagueRoute(bluefire.slug, 'Pro Women', wrongTeam),
+  })
+  await start($)
+
+  const { text } = await run($, 'follow-team', 'valkyries')
+
+  expect(h.asks.calls).toHaveLength(0)
+  expect(text).toContain('Now following Golden State Valkyries')
+  expect(text).toContain('Bluefire Valkyries (W)')
+  expect(h.store.get('followed')).toEqual([{ sport: 'basketball', ...valkyries }])
+})
+
+test('when every hit resolves to a different team nothing is followed', async ($, on) => {
+  const h = harness(on, {
+    ...searchRoutes([valkyries, bluefire]),
+    ...leagueRoute(valkyries.slug, 'WNBA', wrongTeam),
+    ...leagueRoute(bluefire.slug, 'Pro Women', wrongTeam),
+  })
+  await start($)
+
+  const { text } = await run($, 'follow-team', 'valkyries')
+
+  expect(text).toContain("Can't follow")
+  expect(text).toContain('Golden State Valkyries')
+  expect(text).toContain('Bluefire Valkyries (W)')
+  expect(h.store.get('followed')).toBeUndefined()
+  expect(h.asks.calls).toHaveLength(0)
 })
 
 test('dismissing the team question follows nothing and keeps the current team', async ($, on) => {
@@ -497,7 +574,7 @@ test('a poll that returns after switching teams is discarded', async ($, on) => 
     on,
     {
       [TEAM_ROUTE]: { body: schedule(liveMatch), gate, onFetch: entered },
-      'slug=bluefire-valkyries-w': { body: schedule(finishedMatch) },
+      'slug=bluefire-valkyries-w': { body: { ...schedule(finishedMatch), team: bluefire } },
       ...searchRoutes([bluefire]),
     },
     followingValkyries,

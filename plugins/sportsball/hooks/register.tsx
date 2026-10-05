@@ -219,15 +219,22 @@ async function searchTeams($: EngineInterface, name: string): Promise<TeamHit[] 
   return distinctTeams(hits)
 }
 
-async function leagueOf($: EngineInterface, hit: TeamHit): Promise<string> {
+type Lookup = { league: string; isOtherTeam: boolean }
+
+async function lookupTeam($: EngineInterface, hit: TeamHit): Promise<Lookup> {
+  const unknown: Lookup = { league: '', isOtherTeam: false }
   try {
     const response = await $.http.fetch(`${TEAM_URL}?sport=${hit.sport}&slug=${encodeURIComponent(hit.slug)}&limit=1`)
-    if (!response.ok) return ''
-    const matches = (JSON.parse(response.text) as { matches?: unknown }).matches
+    if (!response.ok) return unknown
+    const body = JSON.parse(response.text) as { team?: { name?: unknown }; matches?: unknown }
+    const resolved = body.team?.name
 
-    return Array.isArray(matches) ? text(matches[0]?.competition) : ''
+    return {
+      league: Array.isArray(body.matches) ? text(body.matches[0]?.competition) : '',
+      isOtherTeam: typeof resolved === 'string' && resolved.trim() !== hit.name.trim(),
+    }
   } catch {
-    return ''
+    return unknown
   }
 }
 
@@ -472,18 +479,22 @@ export const register: Register = on => {
     const hits = await searchTeams($, name)
     if (hits === null) return { text: "Couldn't look up that team just now. Try again shortly." }
     if (hits.length === 0) return { text: `No team matched "${name}".` }
-    if (hits.length === 1) return { text: await follow($, hits[0]) }
+    const lookups = await Promise.all(hits.map(h => lookupTeam($, h)))
+    const offered = hits.filter((_, i) => !lookups[i].isOtherTeam)
+    const skipped = hits.filter((_, i) => lookups[i].isOtherTeam).map(h => h.name)
+    const skippedNote = skipped.length > 0 ? ` Left out because SportScore's lookup returns a different team: ${skipped.join(', ')}.` : ''
+    if (offered.length === 0) return { text: `Can't follow ${skipped.join(', ')}: SportScore's lookup returns a different team.` }
+    if (offered.length === 1) return { text: `${await follow($, offered[0])}${skippedNote}` }
 
-    const leagues = await Promise.all(hits.map(h => leagueOf($, h)))
-    const labels = pickLabels(hits, leagues)
-    if (hits.length > MAX_ASK_OPTIONS) {
-      await update($, choices, () => hits.map((h, i): Choice => ({ ...h, label: labels[i] })))
+    const labels = pickLabels(offered, lookups.filter(l => !l.isOtherTeam).map(l => l.league))
+    if (offered.length > MAX_ASK_OPTIONS) {
+      await update($, choices, () => offered.map((h, i): Choice => ({ ...h, label: labels[i] })))
       await $.ui.open({ id: TEAM_PANE, title: `Teams matching "${name}"`, focus: true, closeOnEscape: true })
 
-      return { text: 'Pick a team from the list.' }
+      return { text: `Pick a team from the list.${skippedNote}` }
     }
-    const answer = await $.ui.ask(`Which team matches "${name}"?`, { options: labels, header: 'Team' }).catch(() => null)
-    const picked = hits.find((_, i) => labels[i] === answer)
+    const answer = await $.ui.ask(`Which team matches "${name}"?${skippedNote}`, { options: labels, header: 'Team' }).catch(() => null)
+    const picked = offered.find((_, i) => labels[i] === answer)
 
     return { text: picked ? await follow($, picked) : 'No team followed.' }
   })
