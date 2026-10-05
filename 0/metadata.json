@@ -179,6 +179,37 @@
         "label": "Skill: superpowers:systematic-debugging",
         "default_collapsed": true
       }
+    },
+    {
+      "id": "claude-skill-toolu_01EpLJi3ytya7Gd35qK3RksS",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "rod-voice"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "071b44457c8a",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 863,
+        "end": 864,
+        "entry_ids": [
+          "351cc2b0-63a3-4913-8c92-eced3d923e4f"
+        ],
+        "tool_use_id": "toolu_01EpLJi3ytya7Gd35qK3RksS"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01EpLJi3ytya7Gd35qK3RksS"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: rod-voice",
+        "default_collapsed": true
+      }
     }
   ],
   "session_metrics": {
