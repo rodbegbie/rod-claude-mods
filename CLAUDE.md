@@ -171,6 +171,18 @@ them, so a test must stub every event the mod touches or it fails with
   team probed). A team with no matches, or a failed lookup, gets no
   league. The search API returns only name, slug, logo and url, and
   nothing gives a country.
+- The search API is alphabetical by name with no sort option, caps at 8
+  hits per sport (20 with `limit=20` or more, which is the ceiling), and
+  ignores `page` and `offset`. Every word must appear in the name and
+  punctuation counts: `rangers f.c.` finds Rangers F.C., `rangers fc`
+  does not.
+- `/api/v1/team/` resolves by slug alone and ignores the id in a hit's
+  `url`, and some slugs clash: the search's "Rangers F.C." (`rangers-fc`)
+  resolves to "Ranger's FC" in Andorra, and basketball's `rangers-fc`
+  to a Chilean team. `lookupTeam` compares the resolved `team.name` with
+  the hit's name and leaves a mismatch out of the picker; a failed
+  lookup counts as no mismatch. Across 83 live hits only that one
+  differed, so the exact comparison has not hidden a real team.
 - Four or fewer hits use `$.ui.ask`. The engine refuses more than four
   options, and the handler's `.catch` would hide that as "No team
   followed", so the split at `MAX_ASK_OPTIONS` matters. More hits open

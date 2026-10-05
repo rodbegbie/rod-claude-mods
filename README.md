@@ -76,7 +76,9 @@ empty when the team has no live game.
   teams are offered in a question dialog. More than that opens a pane
   with a list, so none are cut off. Dismissing either follows nothing
   and keeps your current team. A name that matches a single team is
-  followed straight away.
+  followed straight away. A team is left out, and named in the reply,
+  when SportScore's lookup for it returns a different team, as it does
+  for Rangers F.C. (Glasgow).
 - `/unfollow-team [name]` stops following.
 - `/sportsball` shows or hides the band. The followed team is kept
   across sessions either way.
