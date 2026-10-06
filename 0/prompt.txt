@@ -1,0 +1,5 @@
+/claude-md-optimizer
+
+---
+
+Yeah, do this.
