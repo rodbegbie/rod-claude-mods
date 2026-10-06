@@ -3,7 +3,7 @@
   "checkpoint_id": "01M49F5TC22PPM5BD48C22J1QQ",
   "session_id": "32f4dbae-401f-4411-ba28-dfc5ff78d4bd",
   "strategy": "manual-commit",
-  "created_at": "2026-10-06T20:41:14.297109Z",
+  "created_at": "2026-10-06T20:41:24.915458Z",
   "branch": "feature/8-follow-multiple-teams",
   "checkpoints_count": 1,
   "files_touched": [
@@ -13,22 +13,15 @@
   "agent": "Claude Code",
   "model": "claude-sonnet-5-5",
   "turn_id": "ba0c5446b6ee",
-  "checkpoint_transcript_start": 567,
-  "transcript_lines_at_start": 567,
-  "compact_transcript_start": 82,
+  "checkpoint_transcript_start": 607,
+  "transcript_lines_at_start": 607,
+  "compact_transcript_start": 86,
   "token_usage": {
-    "input_tokens": 8,
-    "cache_creation_tokens": 9915,
-    "cache_read_tokens": 720511,
-    "output_tokens": 7662,
-    "api_call_count": 3,
-    "subagent_tokens": {
-      "input_tokens": 8,
-      "cache_creation_tokens": 75564,
-      "cache_read_tokens": 158556,
-      "output_tokens": 245,
-      "api_call_count": 4
-    }
+    "input_tokens": 4,
+    "cache_creation_tokens": 2053,
+    "cache_read_tokens": 493781,
+    "output_tokens": 683,
+    "api_call_count": 2
   },
   "skill_events_version": 1,
   "skill_events": [
@@ -254,28 +247,15 @@
     "turn_count": 8
   },
   "initial_attribution": {
-    "calculated_at": "2026-10-06T20:41:14.254403Z",
-    "agent_lines": 52,
-    "agent_removed": 11,
-    "human_added": 7,
+    "calculated_at": "2026-10-06T20:41:24.880077Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 10,
     "human_modified": 0,
     "human_removed": 0,
-    "total_committed": 59,
-    "total_lines_changed": 74,
-    "agent_percentage": 85.13513513513513,
+    "total_committed": 10,
+    "total_lines_changed": 16,
+    "agent_percentage": 0,
     "metric_version": 2
-  },
-  "prompt_attributions": [
-    {
-      "checkpoint_number": 1,
-      "user_lines_added": 16,
-      "user_lines_removed": 0,
-      "agent_lines_added": 0,
-      "agent_lines_removed": 0,
-      "user_added_per_file": {
-        ".private-journal/2026-10-05/21-20-21-000000-ad32b9b0.md": 8,
-        ".private-journal/2026-10-06/12-48-27-000000-a8dc78de.md": 8
-      }
-    }
-  ]
+  }
 }
