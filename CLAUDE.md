@@ -44,6 +44,15 @@ engine would refuse.
   (both gitignored).
 - Delete the dev-mods copy once the mod is installed from the marketplace;
   otherwise both load and the slash command appears twice.
+- The dev-mods copy does not track the repo. Re-sync it after editing
+  or switching branches: `rsync -a --exclude '.claude-plugin/types'
+  --exclude tsconfig.json --exclude tests plugins/<mod>/
+  ~/.claude/dev-mods/<session-id>/<mod>/`.
+- There is no toast log. A session's transcript records hook failures
+  and command output only, and `claude --debug` is needed for more.
+  `$.store` is a JSON file at
+  `~/.claude/plugins/store/<mod>_inline-<hash>.json`, which shows what
+  is followed and the cached colours.
 
 ## Hook module constraints that `validate` enforces
 
@@ -152,8 +161,18 @@ them, so a test must stub every event the mod touches or it fails with
   `away_score`). The goal toast names `player` of the last goal incident
   whose score equals the schedule's current score, so an incidents list
   that lags the score names nobody rather than the previous scorer.
-  Only one `Goal` incident has been seen, so own goals, penalties and
-  the shape of a disallowed goal are unverified.
+  Real data has shown a goal with an empty `player` (Fijian National
+  League) and an incidents list one goal behind the score, and both
+  give the plain toast. Own goals, penalties and a disallowed goal's
+  shape are still unverified.
+- `reading` is null both when nothing is followed and when the
+  followed team has no live game. The "not following a team" help in
+  the band checks `followedTeams($)`, not `reading`, to tell them apart.
+- A `ui.select` hook must `await next(e)` before it closes the pane.
+  The engine holds an `onSelect` handle only while the pane is drawn,
+  so closing first makes `next(e)` throw "no handler is held under
+  handle N". The test stubs don't model handle lifetimes, so only a
+  live pick shows it.
 - `/follow-team` searches every sport in `SPORTS` (one request each, in
   order) and fails the whole lookup if any request fails. A sport needs
   an entry in `SPORTS` and in `SPORT_EMOJI`, and a `Sport` member in
