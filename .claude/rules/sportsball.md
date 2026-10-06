@@ -145,7 +145,9 @@ paths:
   the loops and readings of teams no longer followed. Tests call
   `start` repeatedly to force a fresh poll, so it must not skip a team
   that already has a loop. Follow and unfollow run `syncPolls`, which
-  only starts missing loops and drops removed teams. Module variables
+  only starts missing loops (staggered the same way) and drops removed
+  teams. A poll that finds its team no longer followed deletes its own
+  `activePolls` key, so a late stagger timer cannot block a refollow. Module variables
   reset when the mod hot-reloads but `$.state` does not, so
   `dropUnfollowed` also drops readings with no loop.
 - Followed teams are capped at `MAX_FOLLOWED` (20) to protect the API
@@ -155,11 +157,13 @@ paths:
 - Two followed teams in one game poll separately, so both see the same
   change. `lastToast` (game key to last toast text) stops the second
   from toasting again.
-- `bandRows` makes one row per game (the first team in follow order wins
-  a shared game), ordered live, then upcoming by start, then finished
-  by latest start. The band shows `MAX_BAND_ROWS` (6) rows, the credit
-  rides on the last game row, and a dim `+N more games` line follows
-  when games are hidden. With one row and nothing hidden the hook
+- `bandRows` makes one row per game (the first reading published wins a
+  shared game, so which side is bold can vary), ordered live, then
+  upcoming by start, then finished by latest start. Live rows keep the
+  order their readings were first published, not follow order. The
+  band shows `MAX_BAND_ROWS` (6) rows, the credit rides on the last
+  game row, and a dim `+N more games` line follows when games are
+  hidden. With one row and nothing hidden the hook
   returns the row itself, not a wrapper, because the layout tests
   assert that tree shape.
 - The `sportsball-teams` pane serves both follow and unfollow picks,

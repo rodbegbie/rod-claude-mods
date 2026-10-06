@@ -71,9 +71,13 @@ function harness(on: any, routes: Record<string, Route>, initial: Record<string,
   on('store.delete', async (_$: any, e: any) => (store.delete(e.key), { value: undefined }))
   on('session.start', async () => ({ cwd: '/tmp' }))
   on('command.register', async () => ({ value: undefined }))
+  const staggerGate = { hold: undefined as Promise<void> | undefined }
   on('clock.after', (_$: any, e: any) => {
-    if (e.ms > 0 && e.ms < 10_000) staggers.push(e.ms)
-    return e.ms < 10_000 ? Promise.resolve({ value: undefined }) : (delays.push(e.ms), new Promise(() => {}))
+    if (e.ms > 0 && e.ms < 10_000) {
+      staggers.push(e.ms)
+      return (async () => (await staggerGate.hold, { value: undefined }))()
+    }
+    return e.ms === 0 ? Promise.resolve({ value: undefined }) : (delays.push(e.ms), new Promise(() => {}))
   })
   on('clock.now', async () => ({ value: clock.now }))
   const toasts: { text: string; timeoutMs?: number }[] = []
@@ -92,7 +96,7 @@ function harness(on: any, routes: Record<string, Route>, initial: Record<string,
   const panes = { opened: [] as any[], closed: [] as any[] }
   on('ui.open', async (_$: any, e: any) => (panes.opened.push(e), { value: { isPlaced: true } }))
   on('ui.close', async (_$: any, e: any) => (panes.closed.push(e), { value: undefined }))
-  return { store, urls, delays, staggers, clock, proc, toasts, asks, panes }
+  return { store, urls, delays, staggers, staggerGate, clock, proc, toasts, asks, panes }
 }
 
 const liveMatch = {
@@ -2073,4 +2077,34 @@ test('one game over the limit says +1 more game', async ($, on) => {
   await until(() => Object.keys(states.readings ?? {}).length === 7)
 
   expect(textNode(await mountBand($), '+1 more game')).toBeDefined()
+})
+
+test('a stagger timer firing after its team was unfollowed does not stop a later refollow polling', async ($, on) => {
+  const h = harness(
+    on,
+    {
+      [TEAM_ROUTE]: { body: schedule(liveMatch) },
+      [bluefireRoute]: { body: bluefireSchedule(bluefireLive) },
+      ...searchRoutes([bluefire]),
+    },
+    followingBoth,
+  )
+  let release!: () => void
+  h.staggerGate.hold = new Promise<void>(resolve => (release = resolve))
+  await start($)
+  await run($, 'unfollow-team', 'bluefire')
+  release()
+  await settle()
+
+  await run($, 'follow-team', 'bluefire')
+
+  expect(readingFor(BLUEFIRE_KEY)).not.toBeNull()
+})
+
+test('following a team staggers the loops that were not yet running', async ($, on) => {
+  const h = harness(on, searchRoutes([], [atlanta]), followingBoth)
+
+  await run($, 'follow-team', 'atletico atlanta')
+
+  expect(h.staggers).toEqual([500, 1000])
 })

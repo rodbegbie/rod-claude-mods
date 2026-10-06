@@ -550,21 +550,23 @@ async function dropUnfollowed($: EngineInterface, followed: Followed[]): Promise
   await update($, readings, all => Object.fromEntries(Object.entries(all).filter(([key]) => !gone.has(key))))
 }
 
+async function pollStaggered($: EngineInterface, teams: Followed[]): Promise<void> {
+  const [first, ...rest] = teams
+  if (!first) return
+  rest.forEach((team, i) => $.clock.after((i + 1) * STAGGER_MS, () => void poll($, team).catch(() => {})))
+  await poll($, first)
+}
+
 async function syncPolls($: EngineInterface): Promise<void> {
   const followed = await followedTeams($)
   await dropUnfollowed($, followed)
-  for (const team of followed) {
-    if (!activePolls.has(teamKey(team))) await poll($, team)
-  }
+  await pollStaggered($, followed.filter(team => !activePolls.has(teamKey(team))))
 }
 
 async function startPolls($: EngineInterface): Promise<void> {
   const followed = await followedTeams($)
   await dropUnfollowed($, followed)
-  const [first, ...rest] = followed
-  if (!first) return
-  rest.forEach((team, i) => $.clock.after((i + 1) * STAGGER_MS, () => void poll($, team).catch(() => {})))
-  await poll($, first)
+  await pollStaggered($, followed)
 }
 
 async function poll($: EngineInterface, team: Followed): Promise<void> {
@@ -578,7 +580,12 @@ async function poll($: EngineInterface, team: Followed): Promise<void> {
   const isFollowed = (await followedTeams($)).some(followed => teamKey(followed) === key)
   const now = await $.clock.now()
   const previous = (await read($, readings))[key] ?? null
-  if (!isLatest() || !isFollowed) return
+  if (!isLatest()) return
+  if (!isFollowed) {
+    activePolls.delete(key)
+
+    return
+  }
   const next = nextReading(games === 'error' ? 'error' : pickGame(games, team.sport, now), team, previous, now)
   await update($, readings, all => withReading(all, key, next))
   if (!isLatest()) return
