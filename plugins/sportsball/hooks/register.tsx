@@ -512,6 +512,7 @@ export const register: Register = on => {
   })
 
   on('ui.select', { element: TEAM_SELECT }, async ($, e, next) => {
+    const result = await next(e)
     const picked = (await read($, choices)).find(choice => choiceValue(choice) === e.value)
     if (picked) {
       await update($, choices, () => [])
@@ -519,7 +520,7 @@ export const register: Register = on => {
       $.ui.toast(await follow($, picked))
     }
 
-    return next(e)
+    return result
   })
 
   on('command.run', { command: 'unfollow-team' }, async ($, e) => {
