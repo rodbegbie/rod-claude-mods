@@ -1,0 +1,9 @@
+OK, I think that fixed things. I got the toast this time.  The help text looks good too.  Commit and push this and open an entire trail.
+
+---
+
+OK, let's work on another issue.  #6 is a good one.  the honduras-vs-jamaica game is live now so you can use it to test with.
+
+---
+
+For your questions:  1. Use the parentheses.  and 2. I don't mind the polled live_minute. It's close enough.
