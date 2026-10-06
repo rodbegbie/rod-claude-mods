@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.11.4",
+  "checkpoint_id": "01M49ER3FEZ9NE34PTC778Q5SM",
+  "strategy": "manual-commit",
+  "branch": "feature/8-follow-multiple-teams",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "plugins/sportsball/hooks/register.test.ts",
+    "plugins/sportsball/hooks/register.tsx",
+    "plugins/sportsball/types/index.d.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 20101,
+    "cache_read_tokens": 1286798,
+    "output_tokens": 9004,
+    "api_call_count": 7
+  }
+}
