@@ -1453,6 +1453,7 @@ test('a poll is discarded when the followed team changes sport but keeps its slu
 })
 
 const MINUTE = 60_000
+const localTime = (ms: number) => new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(ms))
 const at = (minutesFromNow: number) => new Date(now + minutesFromNow * MINUTE).toISOString()
 const upcomingIn = (minutes: number, patch: object = {}) => ({
   ...liveMatch,
@@ -1622,23 +1623,34 @@ test('an upcoming game going live is silent', async ($, on) => {
   expect((await readingOf($)).phase).toBe('live')
 })
 
-test('an upcoming game draws its start countdown and no score', async ($, on) => {
+test('an upcoming game draws its local kick-off time and countdown, and no score', async ($, on) => {
   rig(on, upcomingIn(100))
   await start($)
 
-  expect(flatText(gameRow(await mountBand($)))).toBe('🏀 Golden State Valkyries v Las Vegas Aces · Starts in 1h 40m · WNBA')
+  expect(flatText(gameRow(await mountBand($)))).toBe(
+    `🏀 Golden State Valkyries v Las Vegas Aces · Starts ${localTime(now + 100 * MINUTE)} (in 1h 40m) · WNBA`,
+  )
 })
 
-test('the start countdown follows the clock, rounds up, and drops hours when under one', async ($, on) => {
+test('the countdown follows the clock, rounds up, and drops hours when under one', async ($, on) => {
   const { h } = rig(on, upcomingIn(100))
   await start($)
 
   h.clock.now = now + 75 * MINUTE + 1
-  expect(flatText(gameRow(await mountBand($)))).toContain('Starts in 25m')
+  expect(flatText(gameRow(await mountBand($)))).toContain('(in 25m)')
   h.clock.now = now + 40 * MINUTE
-  expect(flatText(gameRow(await mountBand($)))).toContain('Starts in 1h')
+  expect(flatText(gameRow(await mountBand($)))).toContain('(in 1h)')
+})
+
+test('once the start time has passed the band shows the kick-off time and no countdown', async ($, on) => {
+  const { h } = rig(on, upcomingIn(100))
+  await start($)
+
   h.clock.now = now + 100 * MINUTE
-  expect(flatText(gameRow(await mountBand($)))).toContain('Starting now')
+  const row = flatText(gameRow(await mountBand($)))
+  expect(row).toContain(`Starts ${localTime(now + 100 * MINUTE)} ·`)
+  expect(row).not.toContain('(in')
+  expect(row).not.toContain('Starting now')
 })
 
 test('a finished game draws its final score and full time', async ($, on) => {

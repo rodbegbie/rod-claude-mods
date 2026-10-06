@@ -471,14 +471,19 @@ function pollDelay(phase: Phase | null): number {
   return IDLE_POLL_MS
 }
 
-function countdown(startsAt: number, now: number): string {
+function kickOffTime(startsAt: number): string {
+  return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(startsAt))
+}
+
+function startLabel(startsAt: number, now: number): string {
+  const label = `Starts ${kickOffTime(startsAt)}`
   const minutes = Math.ceil((startsAt - now) / MINUTE_MS)
-  if (minutes <= 0) return 'Starting now'
+  if (minutes <= 0) return label
   const hours = Math.floor(minutes / 60)
   const rest = minutes % 60
-  if (hours === 0) return `Starts in ${rest}m`
+  if (hours === 0) return `${label} (in ${rest}m)`
 
-  return rest === 0 ? `Starts in ${hours}h` : `Starts in ${hours}h ${rest}m`
+  return rest === 0 ? `${label} (in ${hours}h)` : `${label} (in ${hours}h ${rest}m)`
 }
 
 async function poll($: EngineInterface): Promise<void> {
@@ -620,7 +625,7 @@ export const register: Register = on => {
     const isUpcoming = data.phase === 'upcoming'
     const status =
       data.phase === 'upcoming'
-        ? countdown(game.startsAt, await $.clock.now())
+        ? startLabel(game.startsAt, await $.clock.now())
         : data.phase === 'finished'
           ? 'Full time'
           : game.minute === ''
