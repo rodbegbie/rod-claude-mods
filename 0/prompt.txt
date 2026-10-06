@@ -1,0 +1,17 @@
+Let's work on the Sportsball mod.  Can you enable the hot reloading of it in this session?
+
+---
+
+OK, let's work on issue 5.  Start an Entire trail for this.
+
+---
+
+let's do it
+
+---
+
+Yeah, 1 is fine
+
+---
+
+Yeah, build it.  There's a depsan-martin-vs-alianza-universidad-de-huanuco game starting in about 100 minutes that we can use to test the pre-game example.
