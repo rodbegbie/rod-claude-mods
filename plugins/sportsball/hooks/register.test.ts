@@ -404,17 +404,23 @@ test('follow-team reports a failed lookup and stores nothing', async ($, on) => 
   expect(h.store.get('followed')).toBeUndefined()
 })
 
-test('follow-team replaces the team already followed', async ($, on) => {
+const bluefireLive = { ...liveMatch, home: bluefire.name, away: 'Other Team', url: '/basketball/match/bluefire-other/' }
+const bluefireSchedule = (...matches: object[]) => ({ ...schedule(...matches), team: bluefire })
+const VALKYRIES_KEY = 'basketball/golden-state-valkyries'
+const BLUEFIRE_KEY = 'basketball/bluefire-valkyries-w'
+
+test('follow-team adds to the teams already followed', async ($, on) => {
   const h = harness(
     on,
-    { ...searchRoutes([bluefire]) },
-    { followed: [{ sport: 'basketball', ...valkyries }] },
+    { ...searchRoutes([bluefire]), [TEAM_ROUTE]: { body: schedule(liveMatch) }, [bluefireRoute]: { body: bluefireSchedule(bluefireLive) } },
+    followingValkyries,
   )
   await start($)
 
   await run($, 'follow-team', 'bluefire')
 
-  expect(h.store.get('followed')).toEqual([{ sport: 'basketball', ...bluefire }])
+  expect(h.store.get('followed')).toEqual([{ sport: 'basketball', ...valkyries }, { sport: 'basketball', ...bluefire }])
+  expect(Object.keys(states.readings).sort()).toEqual([BLUEFIRE_KEY, VALKYRIES_KEY])
 })
 
 test('unfollow-team clears the followed team', async ($, on) => {
@@ -581,7 +587,7 @@ test('a poll that returns after unfollow-team is discarded', async ($, on) => {
   expect(await readingOf($)).toBeNull()
 })
 
-test('a poll that returns after switching teams is discarded', async ($, on) => {
+test('following another team does not discard the poll already in flight', async ($, on) => {
   let release!: () => void
   let entered!: () => void
   const gate = new Promise<void>(resolve => (release = resolve))
@@ -590,7 +596,7 @@ test('a poll that returns after switching teams is discarded', async ($, on) => 
     on,
     {
       [TEAM_ROUTE]: { body: schedule(liveMatch), gate, onFetch: entered },
-      'slug=bluefire-valkyries-w': { body: { ...schedule(finishedMatch), team: bluefire } },
+      [bluefireRoute]: { body: bluefireSchedule(bluefireLive) },
       ...searchRoutes([bluefire]),
     },
     followingValkyries,
@@ -602,8 +608,7 @@ test('a poll that returns after switching teams is discarded', async ($, on) => 
   release()
   await starting
 
-  expect(readingWrites.filter(r => r?.game)).toEqual([])
-  expect((await readingOf($)).game).toBeNull()
+  expect(Object.keys(states.readings).sort()).toEqual([BLUEFIRE_KEY, VALKYRIES_KEY])
 })
 
 const HOME_LOGO = 'https://img.example/valkyries.png'
@@ -1413,7 +1418,7 @@ test('a basketball score change still stays silent', async ($, on) => {
   expect(h.toasts).toEqual([])
 })
 
-test('a failed first fetch after switching teams does not keep the previous team scoreboard', async ($, on) => {
+test('a failed first fetch for a newly followed team keeps the other team reading', async ($, on) => {
   const routes: Record<string, Route> = {
     [TEAM_ROUTE]: { body: schedule(liveMatch) },
     'slug=atletico-atlanta': { status: 500, body: 'oops' },
@@ -1421,11 +1426,11 @@ test('a failed first fetch after switching teams does not keep the previous team
   }
   harness(on, routes, { ...followingValkyries, ...colouredLogos })
   await start($)
-  expect((await readingOf($)).game.home).toBe('Golden State Valkyries')
 
   await run($, 'follow-team', 'atletico atlanta')
 
-  expect(await readingOf($)).toBeNull()
+  expect(readingFor(VALKYRIES_KEY).game.home).toBe('Golden State Valkyries')
+  expect(readingFor('football/atletico-atlanta')).toBeNull()
 })
 
 test('a failed fetch for the same team still keeps its last reading, dimmed', async ($, on) => {
@@ -1749,4 +1754,87 @@ test('nothing in the band truncates: the game row wraps', async ($, on) => {
   expect(gameRow(tree).props?.wrap).toBe('wrap')
   expect(flatText(gameRow(tree))).toContain('Club Deportivo Universidad San Martin de Porres')
   expect(walk(tree).filter(n => n.props?.wrap === 'truncate-end')).toEqual([])
+})
+
+test('following a team already followed says so and adds nothing', async ($, on) => {
+  const h = harness(on, searchRoutes([valkyries]), followingValkyries)
+  await start($)
+
+  const { text } = await run($, 'follow-team', 'valkyries')
+
+  expect(text).toBe('Already following Golden State Valkyries.')
+  expect(h.store.get('followed')).toHaveLength(1)
+})
+
+test('following past the cap is refused', async ($, on) => {
+  const full = manyTeams(20).map(team => ({ sport: 'basketball', ...team }))
+  const h = harness(on, searchRoutes([bluefire]), { followed: full })
+  await start($)
+
+  const { text } = await run($, 'follow-team', 'bluefire')
+
+  expect(text).toBe('You can follow at most 20 teams. Unfollow one first.')
+  expect(h.store.get('followed')).toHaveLength(20)
+})
+
+test('a store listing the same team twice polls it once', async ($, on) => {
+  const h = harness(on, liveSchedule(), { followed: [...followingValkyries.followed, ...followingValkyries.followed] })
+
+  await start($)
+  await settle()
+
+  expect(h.urls.filter(url => url.includes(TEAM_ROUTE))).toHaveLength(1)
+})
+
+test('each followed team polls on its own cadence', async ($, on) => {
+  const h = harness(on, { [TEAM_ROUTE]: { body: schedule(liveMatch) }, [bluefireRoute]: { body: bluefireSchedule(finishedMatch) } }, followingBoth)
+
+  await start($)
+  await settle()
+
+  expect([...h.delays].sort((a, b) => a - b)).toEqual([30_000, 300_000])
+})
+
+test('session start staggers the followed teams', async ($, on) => {
+  const h = harness(on, {}, followingBoth)
+
+  await start($)
+  await settle()
+
+  expect(h.staggers).toEqual([500])
+})
+
+test('a failing team does not disturb a live one', async ($, on) => {
+  const routes: Record<string, Route> = {
+    [TEAM_ROUTE]: { body: schedule(inPlay('Half time')) },
+    [bluefireRoute]: { status: 500, body: 'oops' },
+  }
+  const h = harness(on, routes, { ...followingBoth, ...colouredLogos })
+  await start($)
+  await settle()
+  routes[TEAM_ROUTE] = { body: schedule(inPlay('3rd quarter')) }
+
+  await start($)
+  await settle()
+
+  expect(readingFor(VALKYRIES_KEY).game.statusText).toBe('3rd quarter')
+  expect(readingFor(BLUEFIRE_KEY)).toBeNull()
+  expect(h.toasts.map(toast => toast.text)).toEqual(['🏀 3rd quarter: Golden State Valkyries 34 - 31 Las Vegas Aces'])
+})
+
+test('two followed teams in one game toast once', async ($, on) => {
+  const routes: Record<string, Route> = {
+    [TEAM_ROUTE]: { body: schedule(inPlay('Half time')) },
+    [bluefireRoute]: { body: bluefireSchedule(inPlay('Half time')) },
+  }
+  const h = harness(on, routes, { ...followingBoth, ...colouredLogos })
+  await start($)
+  await settle()
+  routes[TEAM_ROUTE] = { body: schedule(inPlay('3rd quarter')) }
+  routes[bluefireRoute] = { body: bluefireSchedule(inPlay('3rd quarter')) }
+
+  await start($)
+  await settle()
+
+  expect(h.toasts).toHaveLength(1)
 })

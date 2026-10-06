@@ -19,6 +19,7 @@ const LIVE_POLL_MS = 30_000
 const UPCOMING_POLL_MS = 60_000
 const IDLE_POLL_MS = 300_000
 const STAGGER_MS = 500
+const MAX_FOLLOWED = 20
 const STALE_MS = 10 * 60_000
 const WINDOW_MS = 2 * 60 * 60_000
 const MINUTE_MS = 60_000
@@ -44,6 +45,7 @@ const GAME_LENGTH_MS: Record<Sport, number> = { basketball: 150 * MINUTE_MS, foo
 
 const pendingPolls = new Map<string, { cancel: () => void }>()
 const activePolls = new Map<string, number>()
+const lastToast = new Map<string, string>()
 let lastGeneration = 0
 let helperUsable: boolean | null = null
 const attemptedLogos = new Set<string>()
@@ -209,7 +211,7 @@ function distinctTeams(hits: TeamHit[]): TeamHit[] {
   const seen = new Set<string>()
 
   return hits.filter(hit => {
-    const key = `${hit.sport}/${hit.slug}`
+    const key = teamKey(hit)
     if (seen.has(key)) return false
     seen.add(key)
 
@@ -254,7 +256,10 @@ function pickLabels(hits: TeamHit[], leagues: string[]): string[] {
 }
 
 async function follow($: EngineInterface, hit: TeamHit): Promise<string> {
-  await $.store.set('followed', [{ sport: hit.sport, slug: hit.slug, name: hit.name }])
+  const followed = await followedTeams($)
+  if (followed.some(team => teamKey(team) === teamKey(hit))) return `Already following ${hit.name}.`
+  if (followed.length >= MAX_FOLLOWED) return `You can follow at most ${MAX_FOLLOWED} teams. Unfollow one first.`
+  await $.store.set('followed', [...followed, { sport: hit.sport, slug: hit.slug, name: hit.name }])
   await syncPolls($)
 
   return `Now following ${hit.name}.`
@@ -265,7 +270,7 @@ const teamKey = (team: Pick<Followed, 'sport' | 'slug'>) => `${team.sport}/${tea
 async function followedTeams($: EngineInterface): Promise<Followed[]> {
   const stored = await $.store.get('followed')
   if (!Array.isArray(stored)) return []
-  return stored.filter(item => isNamed(item) && SPORTS.includes((item as Followed).sport))
+  return distinctTeams(stored.filter(item => isNamed(item) && SPORTS.includes((item as Followed).sport)))
 }
 
 const text = (value: unknown) => (typeof value === 'string' ? value : '')
@@ -549,7 +554,11 @@ async function poll($: EngineInterface, team: Followed): Promise<void> {
   if (!isLatest()) return
   if (games !== 'error' && (await read($, isOn)) && isLatest()) {
     const toast = announcement(team.sport, previous, games)
-    if (toast) $.ui.toast(toast, { timeoutMs: TOAST_MS })
+    const gameKey = previous?.game?.key ?? ''
+    if (toast && lastToast.get(gameKey) !== toast) {
+      lastToast.set(gameKey, toast)
+      $.ui.toast(toast, { timeoutMs: TOAST_MS })
+    }
   }
   if (!isLatest()) return
   pendingPolls.get(key)?.cancel()
