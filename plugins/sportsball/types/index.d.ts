@@ -16,10 +16,14 @@ export type LiveGame = {
   minute: string
   scorer: string
   competition: string
+  startsAt: number
 }
+
+export type Phase = 'live' | 'upcoming' | 'finished'
 
 export type Reading = {
   game: LiveGame | null
+  phase: Phase | null
   sport: Followed['sport']
   slug: string
   followedSide: 'home' | 'away' | null

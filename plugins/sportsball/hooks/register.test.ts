@@ -104,7 +104,16 @@ const liveMatch = {
   competition: "Women's National Basketball Association",
   url: '/basketball/match/las-vegas-aces-vs-golden-state-valkyries/',
 }
-const finishedMatch = { ...liveMatch, home: 'Golden State Valkyries', away: 'Dallas Wings', status: 'finished', status_text: 'Finished', home_score: '77', away_score: '73' }
+const finishedMatch = {
+  ...liveMatch,
+  home: 'Golden State Valkyries',
+  away: 'Dallas Wings',
+  status: 'finished',
+  status_text: 'Finished',
+  home_score: '77',
+  away_score: '73',
+  time: '2026-10-01T20:00:00+00:00',
+}
 
 const schedule = (...matches: object[]) => ({ sport: 'basketball', team: valkyries, count: matches.length, matches })
 const followingValkyries = { followed: [{ sport: 'basketball', ...valkyries }] }
@@ -936,7 +945,7 @@ test('full time toasts the final score when the game on screen finishes', async 
   await start($)
 
   expect(h.toasts).toEqual([{ text: '🏀 Full time: Golden State Valkyries 77 - 73 Las Vegas Aces', timeoutMs: 8000 }])
-  expect((await readingOf($)).game).toBeNull()
+  expect((await readingOf($)).phase).toBe('finished')
 })
 
 test('an older finished match at the same URL is not mistaken for full time', async ($, on) => {
@@ -1441,4 +1450,227 @@ test('a poll is discarded when the followed team changes sport but keeps its slu
   await starting
 
   expect(readingWrites.filter(r => r?.game)).toEqual([])
+})
+
+const MINUTE = 60_000
+const at = (minutesFromNow: number) => new Date(now + minutesFromNow * MINUTE).toISOString()
+const upcomingIn = (minutes: number, patch: object = {}) => ({
+  ...liveMatch,
+  status: 'upcoming',
+  status_text: 'Not started',
+  home_score: null,
+  away_score: null,
+  time: at(minutes),
+  ...patch,
+})
+const finishedAgo = (minutesSinceStart: number, patch: object = {}) => ({ ...settled, time: at(-minutesSinceStart), ...patch })
+const rig = (on: any, ...matches: object[]) => {
+  const routes: Record<string, Route> = { [TEAM_ROUTE]: { body: schedule(...matches) } }
+  const h = harness(on, routes, { ...followingValkyries, ...colouredLogos })
+  const next = (...later: object[]) => (routes[TEAM_ROUTE] = { body: schedule(...later) })
+  return { h, routes, next }
+}
+
+test('a game starting within 2 hours is read as upcoming and polled every minute', async ($, on) => {
+  const { h } = rig(on, upcomingIn(100))
+
+  await start($)
+
+  const reading = await readingOf($)
+  expect(reading.phase).toBe('upcoming')
+  expect(reading.game).toMatchObject({ home: 'Golden State Valkyries', away: 'Las Vegas Aces', startsAt: now + 100 * MINUTE })
+  expect(reading.followedSide).toBe('home')
+  expect(h.delays).toEqual([60_000])
+})
+
+test('a game starting in more than 2 hours is not shown', async ($, on) => {
+  const { h } = rig(on, upcomingIn(121))
+
+  await start($)
+
+  expect((await readingOf($)).game).toBeNull()
+  expect(h.delays).toEqual([300_000])
+})
+
+test('a game starting in 119 minutes is shown', async ($, on) => {
+  rig(on, upcomingIn(119))
+
+  await start($)
+
+  expect((await readingOf($)).phase).toBe('upcoming')
+})
+
+test('a game past its start time that has not gone live is still upcoming', async ($, on) => {
+  rig(on, upcomingIn(-10))
+
+  await start($)
+
+  expect((await readingOf($)).phase).toBe('upcoming')
+})
+
+test('the soonest of several upcoming games is shown', async ($, on) => {
+  rig(on, upcomingIn(110, { away: 'Seattle Storm' }), upcomingIn(30, { away: 'Phoenix Mercury' }))
+
+  await start($)
+
+  expect((await readingOf($)).game.away).toBe('Phoenix Mercury')
+})
+
+test('a live game beats an upcoming one', async ($, on) => {
+  const { h } = rig(on, upcomingIn(30), liveMatch)
+
+  await start($)
+
+  const reading = await readingOf($)
+  expect(reading.phase).toBe('live')
+  expect(reading.game.statusText).toBe('Half time')
+  expect(h.delays).toEqual([30_000])
+})
+
+test('a basketball game that ended within 2 hours is shown as finished and polled every 5 minutes', async ($, on) => {
+  const { h } = rig(on, finishedAgo(240))
+
+  await start($)
+
+  const reading = await readingOf($)
+  expect(reading.phase).toBe('finished')
+  expect(reading.game).toMatchObject({ homeScore: '77', awayScore: '73' })
+  expect(h.delays).toEqual([300_000])
+})
+
+test('a basketball game that started 5 hours ago is not shown', async ($, on) => {
+  rig(on, finishedAgo(300))
+
+  await start($)
+
+  expect((await readingOf($)).game).toBeNull()
+})
+
+test('a basketball game is taken to last 2.5 hours', async ($, on) => {
+  const { next } = rig(on, finishedAgo(269))
+  await start($)
+  expect((await readingOf($)).phase).toBe('finished')
+
+  next(finishedAgo(271))
+  await start($)
+  expect((await readingOf($)).game).toBeNull()
+})
+
+test('a football game is taken to last 2 hours', async ($, on) => {
+  const finishedFootball = (minutesSinceStart: number) => ({
+    ...footballMatch,
+    status: 'finished',
+    status_text: 'Finished',
+    time: at(-minutesSinceStart),
+  })
+  const routes: Record<string, Route> = { 'slug=atletico-atlanta': { body: schedule(finishedFootball(239)) } }
+  harness(on, routes, { followed: [{ sport: 'football', ...atlanta }] })
+  await start($)
+  expect((await readingOf($)).phase).toBe('finished')
+
+  routes['slug=atletico-atlanta'] = { body: schedule(finishedFootball(241)) }
+  await start($)
+  expect((await readingOf($)).game).toBeNull()
+})
+
+test('the latest of several recently finished games is shown', async ($, on) => {
+  rig(on, finishedAgo(300, { away: 'Dallas Wings' }), finishedAgo(200, { away: 'Seattle Storm' }), finishedAgo(260, { away: 'Phoenix Mercury' }))
+
+  await start($)
+
+  expect((await readingOf($)).game.away).toBe('Seattle Storm')
+})
+
+test('an upcoming game beats a recently finished one', async ($, on) => {
+  rig(on, finishedAgo(200), upcomingIn(60))
+
+  await start($)
+
+  expect((await readingOf($)).phase).toBe('upcoming')
+})
+
+test('a finished game kept on show does not toast full time again on later polls', async ($, on) => {
+  const { h } = rig(on, finishedAgo(200))
+  await start($)
+
+  await start($)
+  await start($)
+
+  expect(h.toasts).toEqual([])
+})
+
+test('a live game ending toasts full time once and then stays on show as finished', async ($, on) => {
+  const { h, routes } = rig(on, inPlay('4th quarter', '75', '73'))
+  await start($)
+  routes[TEAM_ROUTE] = { body: schedule(settled) }
+
+  await start($)
+  await start($)
+
+  expect(h.toasts.map(toast => toast.text)).toEqual(['🏀 Full time: Golden State Valkyries 77 - 73 Las Vegas Aces'])
+  expect((await readingOf($)).phase).toBe('finished')
+})
+
+test('an upcoming game going live is silent', async ($, on) => {
+  const { h, routes } = rig(on, upcomingIn(1))
+  await start($)
+  routes[TEAM_ROUTE] = { body: schedule(inPlay('1st quarter', '0', '0')) }
+
+  await start($)
+
+  expect(h.toasts).toEqual([])
+  expect((await readingOf($)).phase).toBe('live')
+})
+
+test('an upcoming game draws its start countdown and no score', async ($, on) => {
+  rig(on, upcomingIn(100))
+  await start($)
+
+  expect(flatText(gameRow(await mountBand($)))).toBe('🏀 Golden State Valkyries v Las Vegas Aces · Starts in 1h 40m · WNBA')
+})
+
+test('the start countdown follows the clock, rounds up, and drops hours when under one', async ($, on) => {
+  const { h } = rig(on, upcomingIn(100))
+  await start($)
+
+  h.clock.now = now + 75 * MINUTE + 1
+  expect(flatText(gameRow(await mountBand($)))).toContain('Starts in 25m')
+  h.clock.now = now + 40 * MINUTE
+  expect(flatText(gameRow(await mountBand($)))).toContain('Starts in 1h')
+  h.clock.now = now + 100 * MINUTE
+  expect(flatText(gameRow(await mountBand($)))).toContain('Starting now')
+})
+
+test('a finished game draws its final score and full time', async ($, on) => {
+  rig(on, finishedAgo(200))
+  await start($)
+
+  expect(flatText(gameRow(await mountBand($)))).toBe('🏀 Golden State Valkyries 77 - 73 Las Vegas Aces · Full time · WNBA')
+})
+
+test('only the followed team score is bold on a finished game and nothing is bold before the game', async ($, on) => {
+  const { next } = rig(on, finishedAgo(200))
+  await start($)
+  const isBold = async () => walk(await mountBand($)).filter(n => n.props?.bold).map(n => flatText(n))
+  expect(await isBold()).toEqual(['77'])
+
+  next(upcomingIn(60))
+  await start($)
+  expect(await isBold()).toEqual([])
+})
+
+test('a start time with microseconds, as the API sends it, is parsed', async ($, on) => {
+  rig(on, upcomingIn(100, { time: `${at(100).slice(0, -1)}123Z`.replace('Z', '456+00:00') }))
+
+  await start($)
+
+  expect((await readingOf($)).phase).toBe('upcoming')
+})
+
+test('upcoming and finished games with no usable start time are never shown', async ($, on) => {
+  rig(on, upcomingIn(10, { time: 'soon' }), finishedAgo(200, { time: undefined }))
+
+  await start($)
+
+  expect((await readingOf($)).game).toBeNull()
 })
