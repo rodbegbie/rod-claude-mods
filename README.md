@@ -62,11 +62,19 @@ emoji, both team names, the score, the game status and the competition,
 on a single line. A "Powered by SportScore" credit, linking to
 sportscore.com, sits at the right of that row. It appears once, on the
 last game row, however many teams are shown, and drops to a row of its
-own underneath only when the terminal is too narrow for both. The band is
-empty when the team has no live game. Until you follow a team, it shows a
-line of help pointing at `/follow-team` instead.
+own underneath only when the terminal is too narrow for both.
 
-<!-- screenshot placeholder -->
+With no live game, the band shows a game that starts within the next 2
+hours (`Starts in 1h 40m`, no score) or ended within the last 2 hours
+(the final score and `Full time`). SportScore gives no end time, so a
+game counts as ended its start time plus a typical length: 2 hours for
+football and 2.5 hours for basketball. The band is empty when there is
+no such game. Until you follow a team, it shows a line of help pointing
+at `/follow-team` instead.
+
+![The sportsball band above the prompt: Scotland 0 - 0 Slovenia, 1st
+half 13', UEFA Nations League, with the SportScore credit at the
+right](docs/sportsball.png)
 
 - `/follow-team <name>` follows a team, for example
   `/follow-team golden state valkyries` or `/follow-team club atletico
@@ -97,9 +105,10 @@ Football games also show the match minute next to the status, for
 example `2nd half 84'`. It comes from a second request per poll, so a
 failed lookup just leaves the minute off.
 
-It polls every 30 seconds while a game is live and every 5 minutes
-otherwise. If a poll fails, the last score stays on screen, dimmed, for
-up to 10 minutes. Basketball and football are supported.
+It polls every 30 seconds while a game is live, every minute while one
+is about to start, and every 5 minutes otherwise. If a poll fails, the
+last score stays on screen, dimmed, for up to 10 minutes. Basketball and
+football are supported.
 
 Scores come from the [SportScore](https://sportscore.com) public API,
 which asks for a visible "Powered by SportScore" link, hence the credit
