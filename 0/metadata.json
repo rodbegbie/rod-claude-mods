@@ -241,6 +241,37 @@
         "label": "Skill: superpowers:test-driven-development",
         "default_collapsed": true
       }
+    },
+    {
+      "id": "claude-skill-toolu_013iPYNG2yXKNSk88tMmoXBw",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "superpowers:finishing-a-development-branch"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "ba0c5446b6ee",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 623,
+        "end": 624,
+        "entry_ids": [
+          "e5287089-27f6-4562-a6fe-2b9f85dc871e"
+        ],
+        "tool_use_id": "toolu_013iPYNG2yXKNSk88tMmoXBw"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_013iPYNG2yXKNSk88tMmoXBw"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: superpowers:finishing-a-development-branch",
+        "default_collapsed": true
+      }
     }
   ],
   "session_metrics": {
