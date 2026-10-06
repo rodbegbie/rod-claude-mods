@@ -7,6 +7,7 @@ const isOn = atom({ plugin: 'sportsball', key: 'isOn' } as const, true)
 const readings = atom({ plugin: 'sportsball', key: 'readings' } as const, {})
 const colours = atom({ plugin: 'sportsball', key: 'colours' } as const, {})
 const choices = atom({ plugin: 'sportsball', key: 'choices' } as const, [])
+const pickAction = atom({ plugin: 'sportsball', key: 'pickAction' } as const, 'follow')
 
 const SEARCH_URL = 'https://sportscore.com/api/v1/search/'
 const TEAM_URL = 'https://sportscore.com/api/v1/team/'
@@ -263,6 +264,14 @@ async function follow($: EngineInterface, hit: TeamHit): Promise<string> {
   await syncPolls($)
 
   return `Now following ${hit.name}.`
+}
+
+async function unfollow($: EngineInterface, team: Followed): Promise<string> {
+  const rest = (await followedTeams($)).filter(followed => teamKey(followed) !== teamKey(team))
+  await $.store.set('followed', rest)
+  await syncPolls($)
+
+  return `Stopped following ${team.name}.`
 }
 
 const teamKey = (team: Pick<Followed, 'sport' | 'slug'>) => `${team.sport}/${team.slug}`
@@ -582,6 +591,10 @@ export const register: Register = on => {
       argumentHint: '[team name]',
     })
     await $.command.register({
+      name: 'following',
+      description: 'List the teams you follow',
+    })
+    await $.command.register({
       name: 'sportsball',
       description: 'Show or hide the live score above the prompt',
     })
@@ -609,6 +622,7 @@ export const register: Register = on => {
     const labels = pickLabels(offered, lookups.filter(l => !l.isOtherTeam).map(l => l.league))
     if (offered.length > MAX_ASK_OPTIONS) {
       await update($, choices, () => offered.map((h, i): Choice => ({ ...h, label: labels[i] })))
+      await update($, pickAction, () => 'follow')
       await $.ui.open({ id: TEAM_PANE, title: `Teams matching "${name}"`, focus: true, closeOnEscape: true })
 
       return { text: `Pick a team from the list.${skippedNote}` }
@@ -634,25 +648,44 @@ export const register: Register = on => {
     const result = await next(e)
     const picked = (await read($, choices)).find(choice => teamKey(choice) === e.value)
     if (picked) {
+      const action = await read($, pickAction)
       await update($, choices, () => [])
+      await update($, pickAction, () => 'follow')
       await $.ui.close({ id: TEAM_PANE })
-      $.ui.toast(await follow($, picked))
+      $.ui.toast(action === 'unfollow' ? await unfollow($, picked) : await follow($, picked))
     }
 
     return result
   })
 
-  on('command.run', { command: 'unfollow-team' }, async ($, e) => {
-    const [team] = await followedTeams($)
-    if (!team) return { text: 'Not following any team.' }
-    const name = e.args.trim()
-    if (name && !`${team.name} ${team.slug}`.toLowerCase().includes(name.toLowerCase())) {
-      return { text: `Not following ${name}.` }
-    }
-    await $.store.set('followed', [])
-    await syncPolls($)
+  on('command.run', { command: 'following' }, async $ => {
+    const followed = await followedTeams($)
+    if (followed.length === 0) return { text: 'Not following any team. Try /follow-team <team name>.' }
+    const lines = followed.map(team => `${SPORT_EMOJI[team.sport]} ${team.name}`)
 
-    return { text: `Stopped following ${team.name}.` }
+    return { text: [`Following ${followed.length} team${followed.length === 1 ? '' : 's'}:`, ...lines].join('\n') }
+  })
+
+  on('command.run', { command: 'unfollow-team' }, async ($, e) => {
+    const followed = await followedTeams($)
+    if (followed.length === 0) return { text: 'Not following any team.' }
+    const name = e.args.trim().toLowerCase()
+    const matches = name ? followed.filter(team => `${team.name} ${team.slug}`.toLowerCase().includes(name)) : followed
+    if (matches.length === 0) return { text: `Not following ${e.args.trim()}.` }
+    if (matches.length === 1) return { text: await unfollow($, matches[0]) }
+
+    const labels = pickLabels(matches, matches.map(() => ''))
+    if (matches.length > MAX_ASK_OPTIONS) {
+      await update($, choices, () => matches.map((team, i): Choice => ({ ...team, label: labels[i] })))
+      await update($, pickAction, () => 'unfollow')
+      await $.ui.open({ id: TEAM_PANE, title: 'Teams you follow', focus: true, closeOnEscape: true })
+
+      return { text: 'Pick a team to stop following.' }
+    }
+    const answer = await $.ui.ask('Which team do you want to stop following?', { options: labels, header: 'Team' }).catch(() => null)
+    const picked = matches.find((_, i) => labels[i] === answer)
+
+    return { text: picked ? await unfollow($, picked) : 'No team unfollowed.' }
   })
 
   on('command.run', { command: 'sportsball' }, async $ => {
