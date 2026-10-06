@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.11.4",
+  "checkpoint_id": "01M49AJ1PYFNKSX1B4QV7Y3KD8",
+  "strategy": "manual-commit",
+  "branch": "feature/5-recent-upcoming-games",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "README.md",
+    "docs/sportsball-goal.png"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 2745,
+    "cache_read_tokens": 917573,
+    "output_tokens": 1218,
+    "api_call_count": 4
+  }
+}
