@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.11.4",
+  "checkpoint_id": "01M49F0JBZT63YTPHYRHKNE777",
+  "strategy": "manual-commit",
+  "branch": "feature/8-follow-multiple-teams",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".claude-plugin/marketplace.json",
+    "README.md",
+    "plugins/sportsball/.claude-plugin/plugin.json"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 9388,
+    "cache_read_tokens": 1364833,
+    "output_tokens": 5242,
+    "api_call_count": 6
+  }
+}
