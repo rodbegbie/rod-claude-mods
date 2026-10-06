@@ -21,6 +21,7 @@ const UPCOMING_POLL_MS = 60_000
 const IDLE_POLL_MS = 300_000
 const STAGGER_MS = 500
 const MAX_FOLLOWED = 20
+const MAX_BAND_ROWS = 6
 const STALE_MS = 10 * 60_000
 const WINDOW_MS = 2 * 60 * 60_000
 const MINUTE_MS = 60_000
@@ -423,6 +424,26 @@ function nextReading(result: Pick | null | 'error', team: Followed, previous: Re
   return { game, phase: result?.phase ?? null, sport: team.sport, slug: team.slug, followedSide, isStale: false, at: now }
 }
 
+const PHASE_RANK: Record<Phase, number> = { live: 0, upcoming: 1, finished: 2 }
+
+function bandRows(all: Record<string, Reading>): Reading[] {
+  const seen = new Set<string>()
+  const shown = Object.values(all).filter(data => {
+    if (data.game === null || data.phase === null || seen.has(data.game.key)) return false
+    seen.add(data.game.key)
+
+    return true
+  })
+
+  return shown.sort((a, b) => {
+    const byPhase = PHASE_RANK[a.phase as Phase] - PHASE_RANK[b.phase as Phase]
+    if (byPhase !== 0 || a.phase === 'live') return byPhase
+    const gap = (a.game as LiveGame).startsAt - (b.game as LiveGame).startsAt
+
+    return a.phase === 'upcoming' ? gap : -gap
+  })
+}
+
 function shortCompetition(name: string): string {
   return name === "Women's National Basketball Association" ? 'WNBA' : name
 }
@@ -695,63 +716,78 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    const data = Object.values(await read($, readings)).find(r => r.game) ?? null
+    const rows = bandRows(await read($, readings))
     if (e.props.hasSurvey || !(await read($, isOn))) return next(e)
     const { Box, Text, Link } = $.ui.resolve(e)
-    if (!data?.game) {
+    if (rows.length === 0) {
       if ((await followedTeams($)).length > 0) return next(e)
 
       return <Text wrap="wrap" dimColor>{FOLLOW_HELP}</Text>
     }
     const known = await read($, colours)
-    const { game, followedSide } = data
+    const now = await $.clock.now()
+    const shown = rows.slice(0, MAX_BAND_ROWS)
+    const hidden = rows.length - shown.length
     const width = Math.max(MIN_BAND_COLUMNS, e.props.bodyColumns - COLLAPSE_CONTROL_COLUMNS)
-
-    const isUpcoming = data.phase === 'upcoming'
-    const status =
-      data.phase === 'upcoming'
-        ? startLabel(game.startsAt, await $.clock.now())
-        : data.phase === 'finished'
-          ? 'Full time'
-          : game.minute === ''
-            ? game.statusText
-            : `${game.statusText} ${game.minute}'`
-    const gameText = (
-      <Text wrap="wrap" dimColor={data.isStale}>
-        {SPORT_EMOJI[data.sport]}{' '}
-        <Text color={known[game.homeLogo]}>{game.home}</Text>
-        {' '}
-        {isUpcoming ? '' : <Text bold={followedSide === 'home'}>{game.homeScore}</Text>}
-        {isUpcoming ? 'v' : ' - '}
-        {isUpcoming ? '' : <Text bold={followedSide === 'away'}>{game.awayScore}</Text>}
-        {' '}
-        <Text color={known[game.awayLogo]}>{game.away}</Text>
-        {SEPARATOR}
-        {status}
-        {SEPARATOR}
-        {shortCompetition(game.competition)}
-      </Text>
-    )
     const credit = (
       <Text wrap="wrap" dimColor>
         Powered by <Link href={SPORTSCORE_URL}>SportScore</Link>
       </Text>
     )
-
     const creditColumns = Math.min(CREDIT_MAX_COLUMNS, width - MIN_GAME_COLUMNS)
-    if (creditColumns >= CREDIT_MIN_COLUMNS) {
+
+    const lines = shown.map((data, i) => {
+      const { game, followedSide } = data as Reading & { game: LiveGame }
+      const isUpcoming = data.phase === 'upcoming'
+      const status =
+        data.phase === 'upcoming'
+          ? startLabel(game.startsAt, now)
+          : data.phase === 'finished'
+            ? 'Full time'
+            : game.minute === ''
+              ? game.statusText
+              : `${game.statusText} ${game.minute}'`
+      const gameText = (
+        <Text wrap="wrap" dimColor={data.isStale}>
+          {SPORT_EMOJI[data.sport]}{' '}
+          <Text color={known[game.homeLogo]}>{game.home}</Text>
+          {' '}
+          {isUpcoming ? '' : <Text bold={followedSide === 'home'}>{game.homeScore}</Text>}
+          {isUpcoming ? 'v' : ' - '}
+          {isUpcoming ? '' : <Text bold={followedSide === 'away'}>{game.awayScore}</Text>}
+          {' '}
+          <Text color={known[game.awayLogo]}>{game.away}</Text>
+          {SEPARATOR}
+          {status}
+          {SEPARATOR}
+          {shortCompetition(game.competition)}
+        </Text>
+      )
+      const key = `${data.sport}/${data.slug}`
+      if (i < shown.length - 1) return <Box key={key} width={width}>{gameText}</Box>
+      if (creditColumns >= CREDIT_MIN_COLUMNS) {
+        return (
+          <Box key={key}>
+            <Box width={width - creditColumns}>{gameText}</Box>
+            <Box width={creditColumns} justifyContent="flex-end">{credit}</Box>
+          </Box>
+        )
+      }
+
       return (
-        <Box>
-          <Box width={width - creditColumns}>{gameText}</Box>
-          <Box width={creditColumns} justifyContent="flex-end">{credit}</Box>
+        <Box key={key} flexDirection="column">
+          <Box width={width}>{gameText}</Box>
+          <Box width={width} justifyContent="flex-end">{credit}</Box>
         </Box>
       )
-    }
+    })
+
+    if (lines.length === 1 && hidden === 0) return lines[0]
 
     return (
       <Box flexDirection="column">
-        <Box width={width}>{gameText}</Box>
-        <Box width={width} justifyContent="flex-end">{credit}</Box>
+        {lines}
+        {hidden > 0 && <Text dimColor>{`+${hidden} more game${hidden === 1 ? '' : 's'}`}</Text>}
       </Box>
     )
   })

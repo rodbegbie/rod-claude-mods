@@ -1980,3 +1980,97 @@ test('an unfollow pane that was dismissed does not turn the next follow pick int
   expect(h.store.get('followed')).toHaveLength(7)
   expect(h.store.get('followed')).toContainEqual({ sport: 'basketball', ...rovers[1] })
 })
+
+const gameRows = (tree: Node) => wrappingRows(tree).filter(row => !flatText(row).startsWith('Powered'))
+
+const followedTeams = (count: number) => manyTeams(count).map(team => ({ sport: 'basketball', ...team }))
+
+const gamesFor = (count: number, make: (i: number) => object) => {
+  const routes: Record<string, Route> = {}
+  manyTeams(count).forEach((team, i) => (routes[`slug=${team.slug}&`] = { body: { ...schedule(make(i)), team } }))
+
+  return routes
+}
+
+const liveGame = (i: number, patch: object = {}) => ({ ...liveMatch, home: `Home ${i + 1}`, away: `Away ${i + 1}`, url: `/g${i + 1}/`, ...patch })
+
+test('the band shows a row per game, live first, then upcoming, then finished', async ($, on) => {
+  const routes = gamesFor(3, i =>
+    [
+      finishedAgo(30, { home: 'Home 1', url: '/g1/' }),
+      upcomingIn(60, { home: 'Home 2', url: '/g2/' }),
+      liveGame(2),
+    ][i],
+  )
+  harness(on, routes, { followed: followedTeams(3) })
+  await start($)
+  await until(() => Object.keys(states.readings ?? {}).length === 3)
+
+  const rows = gameRows(await mountBand($)).map(flatText)
+
+  expect(rows).toHaveLength(3)
+  expect(rows[0]).toContain('Home 3')
+  expect(rows[1]).toContain('Home 2')
+  expect(rows[2]).toContain('Home 1')
+})
+
+test('a game between two followed teams shows once', async ($, on) => {
+  harness(
+    on,
+    { [TEAM_ROUTE]: { body: schedule(liveMatch) }, [bluefireRoute]: { body: bluefireSchedule(liveMatch) } },
+    followingBoth,
+  )
+  await start($)
+  await until(() => Object.keys(states.readings ?? {}).length === 2)
+
+  expect(gameRows(await mountBand($))).toHaveLength(1)
+})
+
+test('the credit sits once, after the last game row', async ($, on) => {
+  harness(on, gamesFor(3, i => liveGame(i)), { followed: followedTeams(3) })
+  await start($)
+  await until(() => Object.keys(states.readings ?? {}).length === 3)
+
+  const tree = await mountBand($)
+  const text = flatText(tree)
+
+  expect(links(tree)).toHaveLength(1)
+  expect(text.indexOf('Powered')).toBeGreaterThan(text.indexOf('Home 3'))
+})
+
+test('a stale reading dims only its own row', async ($, on) => {
+  const routes: Record<string, Route> = {
+    [TEAM_ROUTE]: { body: schedule(liveMatch) },
+    [bluefireRoute]: { body: bluefireSchedule(bluefireLive) },
+  }
+  harness(on, routes, { ...followingBoth, ...colouredLogos })
+  await start($)
+  await until(() => Object.keys(states.readings ?? {}).length === 2)
+  routes[TEAM_ROUTE] = { status: 500, body: 'oops' }
+  await start($)
+  await settle()
+
+  const rows = gameRows(await mountBand($))
+
+  expect(rows.map(row => row.props?.dimColor)).toEqual([true, false])
+})
+
+test('more than six games show six rows and a +N more games line', async ($, on) => {
+  harness(on, gamesFor(20, i => liveGame(i)), { followed: followedTeams(20) })
+  await start($)
+  await until(() => Object.keys(states.readings ?? {}).length === 20)
+
+  const tree = await mountBand($)
+
+  expect(gameRows(tree)).toHaveLength(6)
+  expect(textNode(tree, '+14 more games')).toBeDefined()
+  expect(links(tree)).toHaveLength(1)
+})
+
+test('one game over the limit says +1 more game', async ($, on) => {
+  harness(on, gamesFor(7, i => liveGame(i)), { followed: followedTeams(7) })
+  await start($)
+  await until(() => Object.keys(states.readings ?? {}).length === 7)
+
+  expect(textNode(await mountBand($), '+1 more game')).toBeDefined()
+})
