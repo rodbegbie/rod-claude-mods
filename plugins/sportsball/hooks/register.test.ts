@@ -1674,3 +1674,29 @@ test('upcoming and finished games with no usable start time are never shown', as
 
   expect((await readingOf($)).game).toBeNull()
 })
+
+test('an upcoming game long past its start time is a stale fixture and is never shown', async ($, on) => {
+  rig(on, upcomingIn(-60 * 24 * 365, { status_text: 'Delayed' }))
+
+  await start($)
+
+  expect((await readingOf($)).game).toBeNull()
+})
+
+test('a stale upcoming fixture does not hide the real next game', async ($, on) => {
+  rig(on, upcomingIn(-60 * 24 * 365, { away: 'AD Tarma', status_text: 'Delayed' }), upcomingIn(90, { away: 'Seattle Storm' }))
+
+  await start($)
+
+  expect((await readingOf($)).game.away).toBe('Seattle Storm')
+})
+
+test('a game 30 minutes past its start time that has not gone live is still shown, 31 minutes is not', async ($, on) => {
+  const { next } = rig(on, upcomingIn(-30))
+  await start($)
+  expect((await readingOf($)).phase).toBe('upcoming')
+
+  next(upcomingIn(-31))
+  await start($)
+  expect((await readingOf($)).game).toBeNull()
+})

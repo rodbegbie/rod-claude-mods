@@ -21,6 +21,7 @@ const IDLE_POLL_MS = 300_000
 const STALE_MS = 10 * 60_000
 const WINDOW_MS = 2 * 60 * 60_000
 const MINUTE_MS = 60_000
+const LATE_START_GRACE_MS = 30 * MINUTE_MS
 const TOAST_MS = 8000
 const HELPER_TIMEOUT_MS = 15_000
 const MIN_LUMINANCE = 0.35
@@ -295,7 +296,7 @@ type Pick = { game: LiveGame; phase: Phase }
 function pickGame(games: Games, sport: Sport, now: number): Pick | null {
   if (games.live) return { game: games.live, phase: 'live' }
   const soon = games.upcoming
-    .filter(game => game.startsAt <= now + WINDOW_MS)
+    .filter(game => game.startsAt >= now - LATE_START_GRACE_MS && game.startsAt <= now + WINDOW_MS)
     .sort((a, b) => a.startsAt - b.startsAt)[0]
   if (soon) return { game: soon, phase: 'upcoming' }
   const recent = games.finished
