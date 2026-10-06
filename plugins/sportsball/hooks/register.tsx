@@ -277,24 +277,39 @@ function toLiveGame(m: Record<string, unknown>): LiveGame {
     awayLogo: text(m.away_logo),
     statusText: text(m.status_text),
     minute: '',
+    scorer: '',
     competition: text(m.competition),
   }
 }
 
 type Games = { live: LiveGame | null; finished: LiveGame[] }
 
-async function fetchLiveMinute($: EngineInterface, sport: Sport, url: string): Promise<string> {
+type MatchDetail = { minute: string; scorer: string }
+
+const NO_DETAIL: MatchDetail = { minute: '', scorer: '' }
+
+function scorerOf(incidents: unknown, game: LiveGame): string {
+  if (!Array.isArray(incidents)) return ''
+  const goal = incidents.findLast(
+    i => i?.is_goal === true && Number(i.home_score) === Number(game.homeScore) && Number(i.away_score) === Number(game.awayScore),
+  )
+
+  return typeof goal?.player === 'string' ? goal.player.trim() : ''
+}
+
+async function fetchMatchDetail($: EngineInterface, sport: Sport, game: LiveGame, url: string): Promise<MatchDetail> {
   const slug = url.split('/').filter(Boolean)[2]
-  if (!slug) return ''
+  if (!slug) return NO_DETAIL
   try {
     const response = await $.http.fetch(`${MATCH_URL}?sport=${sport}&slug=${encodeURIComponent(slug)}`)
-    if (!response.ok) return ''
-    const minute = (JSON.parse(response.text) as { match?: { live_minute?: unknown } }).match?.live_minute
+    if (!response.ok) return NO_DETAIL
+    const match = (JSON.parse(response.text) as { match?: { live_minute?: unknown; incidents?: unknown } }).match
+    const minute = match?.live_minute
     const printed = typeof minute === 'string' || typeof minute === 'number' ? String(minute).trim() : ''
 
-    return MATCH_MINUTE.test(printed) ? printed : ''
+    return { minute: MATCH_MINUTE.test(printed) ? printed : '', scorer: scorerOf(match?.incidents, game) }
   } catch {
-    return ''
+    return NO_DETAIL
   }
 }
 
@@ -306,10 +321,11 @@ async function fetchGames($: EngineInterface, team: Followed): Promise<Games | '
     if (!Array.isArray(matches)) return 'error'
     const live = matches.find(m => m?.status === 'live')
 
-    const minute = live && HAS_LIVE_MINUTE[team.sport] ? await fetchLiveMinute($, team.sport, text(live.url)) : ''
+    const game = live ? toLiveGame(live) : null
+    const detail = live && game && HAS_LIVE_MINUTE[team.sport] ? await fetchMatchDetail($, team.sport, game, text(live.url)) : NO_DETAIL
 
     return {
-      live: live ? { ...toLiveGame(live), minute } : null,
+      live: game ? { ...game, ...detail } : null,
       finished: matches.filter(m => m?.status === 'finished').map(toLiveGame),
     }
   } catch {
@@ -329,6 +345,12 @@ function hasScored(before: LiveGame, after: LiveGame): boolean {
   return Number(after.homeScore) > Number(before.homeScore) || Number(after.awayScore) > Number(before.awayScore)
 }
 
+function goalLabel(game: LiveGame): string {
+  const label = withMinute('Goal', game)
+
+  return game.scorer === '' ? label : `${label} (${game.scorer})`
+}
+
 function announcement(sport: Sport, previous: Reading | null, games: Games): string | null {
   const before = previous?.game
   if (!before) return null
@@ -337,7 +359,7 @@ function announcement(sport: Sport, previous: Reading | null, games: Games): str
     if (live.statusText !== before.statusText) return scoreline(sport, withMinute(live.statusText, live), live)
     const scoreChanged = live.homeScore !== before.homeScore || live.awayScore !== before.awayScore
     if (TOAST_ON_SCORE[sport] && scoreChanged) {
-      return scoreline(sport, withMinute(hasScored(before, live) ? 'Goal' : 'Score change', live), live)
+      return scoreline(sport, hasScored(before, live) ? goalLabel(live) : withMinute('Score change', live), live)
     }
 
     return null

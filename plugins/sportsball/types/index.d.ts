@@ -14,6 +14,7 @@ export type LiveGame = {
   awayLogo: string
   statusText: string
   minute: string
+  scorer: string
   competition: string
 }
 
