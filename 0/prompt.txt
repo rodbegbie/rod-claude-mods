@@ -1,0 +1,21 @@
+Let's work on Sportsball.  Can you enable the dev-mod for it and load it in this session?
+
+---
+
+OK, let's work on Issue #8
+
+---
+
+Yes, B is good. And the design points make sense.
+
+---
+
+Yes, that's right, carry on to the next section.
+
+---
+
+Yes, that's right, carry on.
+
+---
+
+Yes, that's right, write the spec.
