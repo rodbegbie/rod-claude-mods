@@ -29,7 +29,8 @@ const HEX_COLOUR = /^#[0-9a-f]{6}$/
 const MATCH_MINUTE = /^\d+(\+\d*)?$/
 const COLLAPSE_CONTROL_COLUMNS = 4
 const MIN_BAND_COLUMNS = 10
-const CREDIT_COLUMNS = 22
+const CREDIT_MAX_COLUMNS = 22
+const CREDIT_MIN_COLUMNS = 11
 const MIN_GAME_COLUMNS = 20
 const SEPARATOR = ' · '
 const SPORTSCORE_URL = 'https://sportscore.com'
@@ -648,16 +649,17 @@ export const register: Register = on => {
       </Text>
     )
     const credit = (
-      <Text wrap="truncate-end" dimColor>
+      <Text wrap="wrap" dimColor>
         Powered by <Link href={SPORTSCORE_URL}>SportScore</Link>
       </Text>
     )
 
-    if (width - CREDIT_COLUMNS >= MIN_GAME_COLUMNS) {
+    const creditColumns = Math.min(CREDIT_MAX_COLUMNS, width - MIN_GAME_COLUMNS)
+    if (creditColumns >= CREDIT_MIN_COLUMNS) {
       return (
         <Box>
-          <Box width={width - CREDIT_COLUMNS}>{gameText}</Box>
-          <Box width={CREDIT_COLUMNS} justifyContent="flex-end">{credit}</Box>
+          <Box width={width - creditColumns}>{gameText}</Box>
+          <Box width={creditColumns} justifyContent="flex-end">{credit}</Box>
         </Box>
       )
     }

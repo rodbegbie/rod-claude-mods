@@ -891,12 +891,32 @@ test('too narrow for both, the attribution drops to its own right-aligned row be
   expect((tiny.children as Node[]).map(n => n.props?.width)).toEqual([10, 10])
 })
 
-test('the attribution stays on the game row down to 20 columns for the game, then drops below', async ($, on) => {
+test('the attribution stays on the game row while it gets 11 columns and the game 20, then drops below', async ($, on) => {
   harness(on, liveSchedule(), { ...followingValkyries, ...colouredLogos })
   await start($)
 
-  expect((await mountBand($, 46)).props?.flexDirection).not.toBe('column')
-  expect((await mountBand($, 45)).props?.flexDirection).toBe('column')
+  expect((await mountBand($, 35)).props?.flexDirection).not.toBe('column')
+  expect((await mountBand($, 34)).props?.flexDirection).toBe('column')
+})
+
+test('the attribution box takes what the game leaves, between 11 and 22 columns', async ($, on) => {
+  harness(on, liveSchedule(), { ...followingValkyries, ...colouredLogos })
+  await start($)
+
+  const widths = async (bodyColumns: number) => ((await mountBand($, bodyColumns)).children as Node[]).map(n => n.props?.width)
+  expect(await widths(35)).toEqual([20, 11])
+  expect(await widths(40)).toEqual([20, 16])
+  expect(await widths(46)).toEqual([20, 22])
+  expect(await widths(100)).toEqual([74, 22])
+})
+
+test('the attribution wraps to two lines in a narrow box instead of truncating', async ($, on) => {
+  harness(on, liveSchedule(), { ...followingValkyries, ...colouredLogos })
+  await start($)
+
+  const [, credit] = (await mountBand($, 35)).children as Node[]
+
+  expect(walk(credit).find(n => n.type === 'Text')?.props?.wrap).toBe('wrap')
 })
 
 const inPlay = (statusText: string, home = '34', away = '31') => ({ ...liveMatch, status_text: statusText, home_score: home, away_score: away })
@@ -1713,7 +1733,7 @@ test('a game 30 minutes past its start time that has not gone live is still show
   expect((await readingOf($)).game).toBeNull()
 })
 
-test('the game row wraps rather than truncates, and only the credit truncates', async ($, on) => {
+test('nothing in the band truncates: the game row wraps', async ($, on) => {
   rig(on, upcomingIn(100, { home: 'Alianza Universidad de Huánuco', away: 'Club Deportivo Universidad San Martin de Porres' }))
   await start($)
 
@@ -1721,5 +1741,5 @@ test('the game row wraps rather than truncates, and only the credit truncates', 
 
   expect(gameRow(tree).props?.wrap).toBe('wrap')
   expect(flatText(gameRow(tree))).toContain('Club Deportivo Universidad San Martin de Porres')
-  expect(walk(tree).filter(n => n.props?.wrap === 'truncate-end').map(n => flatText(n))).toEqual(['Powered by SportScore'])
+  expect(walk(tree).filter(n => n.props?.wrap === 'truncate-end')).toEqual([])
 })
