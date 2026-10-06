@@ -86,8 +86,9 @@ line of help pointing at `/follow-team` instead.
 
 A toast appears when the game moves to a new period (for example
 "Half time" or "4th quarter") and at full time, each with the score.
-In football, a change of score also toasts (`Goal 60'`, or `Score change`
-if a goal is ruled out), with the match minute when there is one.
+In football, a change of score also toasts (`Goal 60' (Matias Lopez)`, or
+`Score change` if a goal is ruled out), with the match minute and the
+scorer's name when SportScore has them.
 Basketball scores change too often, so only periods toast there.
 The first reading after a load is silent, so starting Claude mid-game
 doesn't toast. `/sportsball` off mutes toasts without losing track.

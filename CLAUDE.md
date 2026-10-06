@@ -147,6 +147,13 @@ them, so a test must stub every event the mod touches or it fails with
   fails the poll. `live_minute` is a string and is `"HT"` at half time,
   so only digits with optional added time (`84`, `90+`, `45+2`) are
   drawn. In stoppage time the API has been seen to send a bare `"90+"`.
+- The same `/api/v1/match/` response carries `incidents`, each with
+  `is_goal`, `player`, and the match score after it (`home_score`,
+  `away_score`). The goal toast names `player` of the last goal incident
+  whose score equals the schedule's current score, so an incidents list
+  that lags the score names nobody rather than the previous scorer.
+  Only one `Goal` incident has been seen, so own goals, penalties and
+  the shape of a disallowed goal are unverified.
 - `/follow-team` searches every sport in `SPORTS` (one request each, in
   order) and fails the whole lookup if any request fails. A sport needs
   an entry in `SPORTS` and in `SPORT_EMOJI`, and a `Sport` member in

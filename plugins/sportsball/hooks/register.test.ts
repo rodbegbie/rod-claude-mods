@@ -1091,7 +1091,18 @@ test('football period changes and full time toast with the football emoji', asyn
 })
 
 const MATCH_ROUTE = '/api/v1/match/'
-const detail = (live_minute: unknown) => ({ body: { sport: 'football', match: { ...footballMatch, live_minute } } })
+const detail = (live_minute: unknown, incidents?: unknown) => ({ body: { sport: 'football', match: { ...footballMatch, live_minute, incidents } } })
+const incident = (player: unknown, home: number, away: number, extra: object = {}) => ({
+  time: 60,
+  type: 'Goal',
+  type_id: 1,
+  side: 'away',
+  player,
+  is_goal: true,
+  home_score: home,
+  away_score: away,
+  ...extra,
+})
 const footballHarness = (on: any, routes: Record<string, Route>) => {
   routes['slug=atletico-atlanta'] = { body: schedule(footballMatch) }
   return harness(on, routes, { followed: [{ sport: 'football', ...atlanta }] })
@@ -1187,13 +1198,15 @@ for (const word of ['FT', 'ET', 'Break']) {
   })
 }
 
-const footballScoreRig = (on: any, first: { home?: string; away?: string; minute?: string | null; statusText?: string }) => {
+type ScoreStep = { home?: string; away?: string; minute?: string | null; statusText?: string; incidents?: unknown }
+
+const footballScoreRig = (on: any, first: ScoreStep) => {
   const routes: Record<string, Route> = {}
-  const set = (next: { home?: string; away?: string; minute?: string | null; statusText?: string }) => {
+  const set = (next: ScoreStep) => {
     routes['slug=atletico-atlanta'] = {
       body: schedule({ ...footballMatch, home_score: next.home ?? '1', away_score: next.away ?? '2', status_text: next.statusText ?? '2nd half' }),
     }
-    routes[MATCH_ROUTE] = detail(next.minute === undefined ? null : next.minute)
+    routes[MATCH_ROUTE] = detail(next.minute === undefined ? null : next.minute, next.incidents)
   }
   set(first)
   const h = harness(on, routes, { followed: [{ sport: 'football', ...atlanta }] })
@@ -1208,6 +1221,100 @@ test('a football goal toasts the new score with the minute', async ($, on) => {
   await start($)
 
   expect(h.toasts).toEqual([{ text: "⚽ Goal 60': Atletico Rafaela 1 - 3 Atletico Atlanta", timeoutMs: 8000 }])
+})
+
+test('a football goal toast names the scorer', async ($, on) => {
+  const { h, set } = footballScoreRig(on, { minute: '59' })
+  await start($)
+  set({ away: '3', minute: '60', incidents: [incident('Tomas Rodriguez', 1, 2), incident('Matias Lopez', 1, 3)] })
+
+  await start($)
+
+  expect(h.toasts.map(toast => toast.text)).toEqual(["⚽ Goal 60' (Matias Lopez): Atletico Rafaela 1 - 3 Atletico Atlanta"])
+})
+
+test('a goal toast without a minute still names the scorer', async ($, on) => {
+  const { h, set } = footballScoreRig(on, { minute: null })
+  await start($)
+  set({ home: '2', minute: null, incidents: [incident('Matias Lopez', 2, 2, { side: 'home' })] })
+
+  await start($)
+
+  expect(h.toasts.map(toast => toast.text)).toEqual(['⚽ Goal (Matias Lopez): Atletico Rafaela 2 - 2 Atletico Atlanta'])
+})
+
+test('incidents that are not goals never name a scorer', async ($, on) => {
+  const { h, set } = footballScoreRig(on, { minute: '59' })
+  await start($)
+  set({ away: '3', minute: '60', incidents: [incident('Matias Lopez', 1, 3, { type: 'Yellow card', is_goal: false })] })
+
+  await start($)
+
+  expect(h.toasts.map(toast => toast.text)).toEqual(["⚽ Goal 60': Atletico Rafaela 1 - 3 Atletico Atlanta"])
+})
+
+test('incidents that lag behind the score name nobody', async ($, on) => {
+  const { h, set } = footballScoreRig(on, { minute: '59' })
+  await start($)
+  set({ away: '3', minute: '60', incidents: [incident('Tomas Rodriguez', 1, 2)] })
+
+  await start($)
+
+  expect(h.toasts.map(toast => toast.text)).toEqual(["⚽ Goal 60': Atletico Rafaela 1 - 3 Atletico Atlanta"])
+})
+
+for (const [label, incidents] of [['missing', undefined], ['null', null], ['not a list', 'oops'], ['empty', []]] as const) {
+  test(`${label} incidents give the plain goal toast`, async ($, on) => {
+    const { h, set } = footballScoreRig(on, { minute: '59' })
+    await start($)
+    set({ away: '3', minute: '60', incidents })
+
+    await start($)
+
+    expect(h.toasts.map(toast => toast.text)).toEqual(["⚽ Goal 60': Atletico Rafaela 1 - 3 Atletico Atlanta"])
+  })
+}
+
+for (const [label, player] of [['blank', '  '], ['missing', undefined], ['not text', 7]] as const) {
+  test(`a ${label} player name is ignored`, async ($, on) => {
+    const { h, set } = footballScoreRig(on, { minute: '59' })
+    await start($)
+    set({ away: '3', minute: '60', incidents: [incident(player, 1, 3)] })
+
+    await start($)
+
+    expect(h.toasts.map(toast => toast.text)).toEqual(["⚽ Goal 60': Atletico Rafaela 1 - 3 Atletico Atlanta"])
+  })
+}
+
+test('malformed incident entries are skipped', async ($, on) => {
+  const { h, set } = footballScoreRig(on, { minute: '59' })
+  await start($)
+  set({ away: '3', minute: '60', incidents: [null, 'oops', 4, incident('Matias Lopez', 1, 3)] })
+
+  await start($)
+
+  expect(h.toasts.map(toast => toast.text)).toEqual(["⚽ Goal 60' (Matias Lopez): Atletico Rafaela 1 - 3 Atletico Atlanta"])
+})
+
+test('a score that goes down is a score change with no scorer even when a goal is listed', async ($, on) => {
+  const { h, set } = footballScoreRig(on, { away: '3', minute: '70' })
+  await start($)
+  set({ away: '2', minute: '72', incidents: [incident('Tomas Rodriguez', 1, 2)] })
+
+  await start($)
+
+  expect(h.toasts.map(toast => toast.text)).toEqual(["⚽ Score change 72': Atletico Rafaela 1 - 2 Atletico Atlanta"])
+})
+
+test('a scorer named alongside a new period is left out of the period toast', async ($, on) => {
+  const { h, set } = footballScoreRig(on, { minute: '45+' })
+  await start($)
+  set({ away: '3', statusText: 'Half time', minute: 'HT', incidents: [incident('Matias Lopez', 1, 3)] })
+
+  await start($)
+
+  expect(h.toasts.map(toast => toast.text)).toEqual(['⚽ Half time: Atletico Rafaela 1 - 3 Atletico Atlanta'])
 })
 
 test('a football goal toast has no minute when there is none', async ($, on) => {

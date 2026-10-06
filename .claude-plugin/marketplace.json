@@ -23,7 +23,7 @@
       "name": "sportsball",
       "source": "./plugins/sportsball",
       "description": "Follow a team and see its live game score above the prompt, with /follow-team, /unfollow-team and /sportsball",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "author": { "name": "Rod Begbie" }
     }
   ]
