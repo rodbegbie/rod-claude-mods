@@ -66,10 +66,10 @@ own underneath only when the terminal is too narrow for both.
 
 With no live game, the band shows a game that starts within the next 2
 hours (`Starts 1:30 PM (in 1h 40m)` in your local time, no score) or
-ended within the last 2 hours (the final score and `Full time`). SportScore gives no end time, so a
-game counts as ended its start time plus a typical length: 2 hours for
-football and 2.5 hours for basketball. The band is empty when there is
-no such game. Until you follow a team, it shows a line of help pointing
+ended within the last 2 hours (the final score and `Full time`).
+SportScore gives no end time, so a game counts as ended its start time
+plus a typical length: 2 hours for football and 2.5 hours for basketball.
+The band is empty when there is no such game. Until you follow a team, it shows a line of help pointing
 at `/follow-team` instead.
 
 ![The sportsball band above the prompt: Scotland 0 - 0 Slovenia, 1st
