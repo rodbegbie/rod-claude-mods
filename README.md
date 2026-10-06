@@ -101,6 +101,9 @@ Basketball scores change too often, so only periods toast there.
 The first reading after a load is silent, so starting Claude mid-game
 doesn't toast. `/sportsball` off mutes toasts without losing track.
 
+![A sportsball toast: Goal 32' (Ryan Christie): Scotland 1 - 0
+Slovenia](docs/sportsball-goal.png)
+
 Football games also show the match minute next to the status, for
 example `2nd half 84'`. It comes from a second request per poll, so a
 failed lookup just leaves the minute off.
