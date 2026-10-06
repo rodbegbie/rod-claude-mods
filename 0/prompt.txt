@@ -1,0 +1,1 @@
+Let's give the game section a bigger minimum width. Say 60 columns.
