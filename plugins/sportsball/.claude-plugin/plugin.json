@@ -1,7 +1,7 @@
 {
   "name": "sportsball",
-  "version": "0.2.2",
-  "description": "Follow a team and see its live game score above the prompt, with /follow-team, /unfollow-team and /sportsball",
+  "version": "0.3.0",
+  "description": "Follow teams and see their live game scores above the prompt, with /follow-team, /unfollow-team, /following and /sportsball",
   "author": { "name": "Rod Begbie" },
   "types": "./types/index.d.ts"
 }

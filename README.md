@@ -25,7 +25,7 @@ To try the marketplace from a local checkout, point at the folder instead:
 | --- | --- |
 | [context-bar](plugins/context-bar) | Stacked context-window bar above the prompt |
 | [pro-limits](plugins/pro-limits) | 5-hour and weekly usage-limit gauges above the prompt |
-| [sportsball](plugins/sportsball) | Live score of a followed team above the prompt |
+| [sportsball](plugins/sportsball) | Live scores of followed teams above the prompt |
 
 ### context-bar
 
@@ -57,26 +57,29 @@ honest.
 
 ### sportsball
 
-Follows one team and draws its live game above the prompt: a sport
-emoji, both team names, the score, the game status and the competition,
-on a single line. A "Powered by SportScore" credit, linking to
-sportscore.com, sits at the right of that row. It appears once, on the
-last game row, however many teams are shown, and drops to a row of its
-own underneath only when the terminal is too narrow for both.
+Follows as many teams as you like (up to 20) and draws their live games
+above the prompt, one row per game: a sport emoji, both team names, the
+score, the game status and the competition, on a single line. A game
+between two teams you follow shows once. Rows are ordered live games
+first, then games about to start, then games that have just ended. The
+band shows at most 6 rows, with a dim `+2 more games` line when there are
+others. A "Powered by SportScore" credit, linking to sportscore.com, sits
+at the right of the last game row, and drops to a row of its own
+underneath only when the terminal is too narrow for both.
 
-With no live game, the band shows a game that starts within the next 2
+A team with no live game shows a game that starts within the next 2
 hours (`Starts 1:30 PM (in 1h 40m)` in your local time, no score) or
 ended within the last 2 hours (the final score and `Full time`).
 SportScore gives no end time, so a game counts as ended its start time
 plus a typical length: 2 hours for football and 2.5 hours for basketball.
-The band is empty when there is no such game. Until you follow a team,
+The band is empty when no team has such a game. Until you follow a team,
 it shows a line of help pointing at `/follow-team` instead.
 
 ![The sportsball band above the prompt: Scotland 0 - 0 Slovenia, 1st
 half 13', UEFA Nations League, with the SportScore credit at the
 right](docs/sportsball.png)
 
-- `/follow-team <name>` follows a team, for example
+- `/follow-team <name>` adds a team to those you follow, for example
   `/follow-team golden state valkyries` or `/follow-team club atletico
   tigre`. It searches basketball and football together. If the name
   matches more than one team, even exactly, it asks which. Each choice
@@ -84,15 +87,21 @@ right](docs/sportsball.png)
   (left off when the lookup fails or the team has no games). Up to four
   teams are offered in a question dialog. More than that opens a pane
   with a list, so none are cut off. Dismissing either follows nothing
-  and keeps your current team. A name that matches a single team is
-  followed straight away. A team is left out, and named in the reply,
-  when SportScore's lookup for it returns a different team, as it does
-  for Rangers F.C. (Glasgow).
-- `/unfollow-team [name]` stops following.
-- `/sportsball` shows or hides the band. The followed team is kept
+  and keeps the teams you already follow. A name that matches a single
+  team is followed straight away. A team you already follow says so, and
+  following past 20 teams is refused. A team is left out, and named in
+  the reply, when SportScore's lookup for it returns a different team,
+  as it does for Rangers F.C. (Glasgow).
+- `/following` lists the teams you follow, one per line with its sport
+  emoji. It needs no network.
+- `/unfollow-team [name]` stops following a team. With one team, or a
+  name that matches one team, it unfollows at once. Otherwise it asks
+  which, in a question dialog for up to four teams and a pane with a
+  list for more.
+- `/sportsball` shows or hides the band. The teams you follow are kept
   across sessions either way.
 
-A toast appears when the game moves to a new period (for example
+A toast appears when a followed game moves to a new period (for example
 "Half time" or "4th quarter") and at full time, each with the score.
 In football, a change of score also toasts (`Goal 60' (Matias Lopez)`, or
 `Score change` if a goal is ruled out), with the match minute and the
@@ -108,9 +117,10 @@ Football games also show the match minute next to the status, for
 example `2nd half 84'`. It comes from a second request per poll, so a
 failed lookup just leaves the minute off.
 
-It polls every 30 seconds while a game is live, every minute while one
-is about to start, and every 5 minutes otherwise. If a poll fails, the
-last score stays on screen, dimmed, for up to 10 minutes. Basketball and
+Each team is polled on its own schedule: every 30 seconds while its game
+is live, every minute while one is about to start, and every 5 minutes
+otherwise. If a poll fails, that team's last score stays on screen,
+dimmed, for up to 10 minutes, and the other teams carry on. Basketball and
 football are supported.
 
 Scores come from the [SportScore](https://sportscore.com) public API,
