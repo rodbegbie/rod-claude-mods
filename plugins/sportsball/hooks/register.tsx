@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Choice, Followed, LiveGame, Reading, Sport } from '../types'
+import type { Choice, Followed, LiveGame, Phase, Reading, Sport } from '../types'
 
 const isOn = atom({ plugin: 'sportsball', key: 'isOn' } as const, true)
 const reading = atom({ plugin: 'sportsball', key: 'reading' } as const, null)
@@ -16,8 +16,12 @@ const MAX_ASK_OPTIONS = 4
 const TEAM_PANE = 'sportsball-teams'
 const TEAM_SELECT = 'team'
 const LIVE_POLL_MS = 30_000
+const UPCOMING_POLL_MS = 60_000
 const IDLE_POLL_MS = 300_000
 const STALE_MS = 10 * 60_000
+const WINDOW_MS = 2 * 60 * 60_000
+const MINUTE_MS = 60_000
+const LATE_START_GRACE_MS = 30 * MINUTE_MS
 const TOAST_MS = 8000
 const HELPER_TIMEOUT_MS = 15_000
 const MIN_LUMINANCE = 0.35
@@ -25,8 +29,9 @@ const HEX_COLOUR = /^#[0-9a-f]{6}$/
 const MATCH_MINUTE = /^\d+(\+\d*)?$/
 const COLLAPSE_CONTROL_COLUMNS = 4
 const MIN_BAND_COLUMNS = 10
-const CREDIT_COLUMNS = 22
-const MIN_GAME_COLUMNS = 20
+const CREDIT_MAX_COLUMNS = 22
+const CREDIT_MIN_COLUMNS = 11
+const MIN_GAME_COLUMNS = 60
 const SEPARATOR = ' · '
 const SPORTSCORE_URL = 'https://sportscore.com'
 const FOLLOW_HELP = '🏀⚽ Sportsball: not following a team. Try /follow-team <team name> to see its live score here.'
@@ -34,6 +39,7 @@ const SPORTS: Sport[] = ['basketball', 'football']
 const SPORT_EMOJI: Record<Sport, string> = { basketball: '🏀', football: '⚽' }
 const HAS_LIVE_MINUTE: Record<Sport, boolean> = { basketball: false, football: true }
 const TOAST_ON_SCORE: Record<Sport, boolean> = { basketball: false, football: true }
+const GAME_LENGTH_MS: Record<Sport, number> = { basketball: 150 * MINUTE_MS, football: 120 * MINUTE_MS }
 
 let pendingPoll: { cancel: () => void } | null = null
 let pollGeneration = 0
@@ -280,10 +286,26 @@ function toLiveGame(m: Record<string, unknown>): LiveGame {
     minute: '',
     scorer: '',
     competition: text(m.competition),
+    startsAt: Date.parse(text(m.time)),
   }
 }
 
-type Games = { live: LiveGame | null; finished: LiveGame[] }
+type Games = { live: LiveGame | null; upcoming: LiveGame[]; finished: LiveGame[] }
+
+type Pick = { game: LiveGame; phase: Phase }
+
+function pickGame(games: Games, sport: Sport, now: number): Pick | null {
+  if (games.live) return { game: games.live, phase: 'live' }
+  const soon = games.upcoming
+    .filter(game => game.startsAt >= now - LATE_START_GRACE_MS && game.startsAt <= now + WINDOW_MS)
+    .sort((a, b) => a.startsAt - b.startsAt)[0]
+  if (soon) return { game: soon, phase: 'upcoming' }
+  const recent = games.finished
+    .filter(game => game.startsAt + GAME_LENGTH_MS[sport] >= now - WINDOW_MS)
+    .sort((a, b) => b.startsAt - a.startsAt)[0]
+
+  return recent ? { game: recent, phase: 'finished' } : null
+}
 
 type MatchDetail = { minute: string; scorer: string }
 
@@ -327,6 +349,7 @@ async function fetchGames($: EngineInterface, team: Followed): Promise<Games | '
 
     return {
       live: game ? { ...game, ...detail } : null,
+      upcoming: matches.filter(m => m?.status === 'upcoming').map(toLiveGame),
       finished: matches.filter(m => m?.status === 'finished').map(toLiveGame),
     }
   } catch {
@@ -354,7 +377,7 @@ function goalLabel(game: LiveGame): string {
 
 function announcement(sport: Sport, previous: Reading | null, games: Games): string | null {
   const before = previous?.game
-  if (!before) return null
+  if (!before || previous.phase !== 'live') return null
   const live = games.live
   if (live?.key === before.key) {
     if (live.statusText !== before.statusText) return scoreline(sport, withMinute(live.statusText, live), live)
@@ -370,17 +393,18 @@ function announcement(sport: Sport, previous: Reading | null, games: Games): str
   return final ? scoreline(sport, 'Full time', final) : null
 }
 
-function nextReading(result: LiveGame | null | 'error', team: Followed, previous: Reading | null, now: number): Reading | null {
+function nextReading(result: Pick | null | 'error', team: Followed, previous: Reading | null, now: number): Reading | null {
   const carried = previous?.sport === team.sport && previous.slug === team.slug ? previous : null
   if (result === 'error') {
     if (!carried?.game) return carried
     if (now - carried.at > STALE_MS) {
-      return { game: null, sport: team.sport, slug: team.slug, followedSide: null, isStale: false, at: now }
+      return { game: null, phase: null, sport: team.sport, slug: team.slug, followedSide: null, isStale: false, at: now }
     }
     return { ...carried, isStale: true }
   }
-  const followedSide = result?.home === team.name ? 'home' : result?.away === team.name ? 'away' : null
-  return { game: result, sport: team.sport, slug: team.slug, followedSide, isStale: false, at: now }
+  const game = result?.game ?? null
+  const followedSide = game?.home === team.name ? 'home' : game?.away === team.name ? 'away' : null
+  return { game, phase: result?.phase ?? null, sport: team.sport, slug: team.slug, followedSide, isStale: false, at: now }
 }
 
 function shortCompetition(name: string): string {
@@ -441,6 +465,28 @@ async function ensureColours($: EngineInterface, game: LiveGame): Promise<void> 
   }
 }
 
+function pollDelay(phase: Phase | null): number {
+  if (phase === 'live') return LIVE_POLL_MS
+  if (phase === 'upcoming') return UPCOMING_POLL_MS
+
+  return IDLE_POLL_MS
+}
+
+function kickOffTime(startsAt: number): string {
+  return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(startsAt))
+}
+
+function startLabel(startsAt: number, now: number): string {
+  const label = `Starts ${kickOffTime(startsAt)}`
+  const minutes = Math.ceil((startsAt - now) / MINUTE_MS)
+  if (minutes <= 0) return label
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  if (hours === 0) return `${label} (in ${rest}m)`
+
+  return rest === 0 ? `${label} (in ${hours}h)` : `${label} (in ${hours}h ${rest}m)`
+}
+
 async function poll($: EngineInterface): Promise<void> {
   const generation = ++pollGeneration
   const isLatest = () => generation === pollGeneration
@@ -456,7 +502,7 @@ async function poll($: EngineInterface): Promise<void> {
   const now = await $.clock.now()
   const previous = await read($, reading)
   if (!isLatest() || current?.slug !== team.slug || current.sport !== team.sport) return
-  const next = nextReading(games === 'error' ? 'error' : games.live, team, previous, now)
+  const next = nextReading(games === 'error' ? 'error' : pickGame(games, team.sport, now), team, previous, now)
   await update($, reading, () => next)
   if (!isLatest()) return
   if (games !== 'error' && (await read($, isOn)) && isLatest()) {
@@ -465,7 +511,7 @@ async function poll($: EngineInterface): Promise<void> {
   }
   if (!isLatest()) return
   pendingPoll?.cancel()
-  pendingPoll = $.clock.after(next?.game ? LIVE_POLL_MS : IDLE_POLL_MS, () => poll($))
+  pendingPoll = $.clock.after(pollDelay(next?.phase ?? null), () => poll($))
   if (next?.game) {
     const game = next.game
     $.clock.after(0, () => void ensureColours($, game).catch(() => {}))
@@ -571,21 +617,29 @@ export const register: Register = on => {
     if (!data?.game) {
       if ((await followedTeams($)).length > 0) return next(e)
 
-      return <Text wrap="truncate-end" dimColor>{FOLLOW_HELP}</Text>
+      return <Text wrap="wrap" dimColor>{FOLLOW_HELP}</Text>
     }
     const known = await read($, colours)
     const { game, followedSide } = data
     const width = Math.max(MIN_BAND_COLUMNS, e.props.bodyColumns - COLLAPSE_CONTROL_COLUMNS)
 
-    const status = game.minute === '' ? game.statusText : `${game.statusText} ${game.minute}'`
+    const isUpcoming = data.phase === 'upcoming'
+    const status =
+      data.phase === 'upcoming'
+        ? startLabel(game.startsAt, await $.clock.now())
+        : data.phase === 'finished'
+          ? 'Full time'
+          : game.minute === ''
+            ? game.statusText
+            : `${game.statusText} ${game.minute}'`
     const gameText = (
-      <Text wrap="truncate-end" dimColor={data.isStale}>
+      <Text wrap="wrap" dimColor={data.isStale}>
         {SPORT_EMOJI[data.sport]}{' '}
         <Text color={known[game.homeLogo]}>{game.home}</Text>
         {' '}
-        <Text bold={followedSide === 'home'}>{game.homeScore}</Text>
-        {' - '}
-        <Text bold={followedSide === 'away'}>{game.awayScore}</Text>
+        {isUpcoming ? '' : <Text bold={followedSide === 'home'}>{game.homeScore}</Text>}
+        {isUpcoming ? 'v' : ' - '}
+        {isUpcoming ? '' : <Text bold={followedSide === 'away'}>{game.awayScore}</Text>}
         {' '}
         <Text color={known[game.awayLogo]}>{game.away}</Text>
         {SEPARATOR}
@@ -595,16 +649,17 @@ export const register: Register = on => {
       </Text>
     )
     const credit = (
-      <Text wrap="truncate-end" dimColor>
+      <Text wrap="wrap" dimColor>
         Powered by <Link href={SPORTSCORE_URL}>SportScore</Link>
       </Text>
     )
 
-    if (width - CREDIT_COLUMNS >= MIN_GAME_COLUMNS) {
+    const creditColumns = Math.min(CREDIT_MAX_COLUMNS, width - MIN_GAME_COLUMNS)
+    if (creditColumns >= CREDIT_MIN_COLUMNS) {
       return (
         <Box>
-          <Box width={width - CREDIT_COLUMNS}>{gameText}</Box>
-          <Box width={CREDIT_COLUMNS} justifyContent="flex-end">{credit}</Box>
+          <Box width={width - creditColumns}>{gameText}</Box>
+          <Box width={creditColumns} justifyContent="flex-end">{credit}</Box>
         </Box>
       )
     }
