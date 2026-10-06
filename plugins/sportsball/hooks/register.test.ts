@@ -830,11 +830,33 @@ test('the band stays out of the way when there is nothing to show', async ($, on
   expect(flatText(await mountBand($))).toBe('ENGINE')
 })
 
-test('no followed team and no live game both leave the engine drawing', async ($, on) => {
+test('following no team shows help on using /follow-team', async ($, on) => {
   harness(on, {})
   await start($)
 
+  const tree = await mountBand($)
+
+  expect(flatText(tree)).toContain('/follow-team <team name>')
+  expect(tree.props?.wrap).toBe('truncate-end')
+})
+
+test('the help text gives way to a survey and to toggling sportsball off', async ($, on) => {
+  harness(on, {})
+  await start($)
+
+  expect(flatText(await mountBand($, 100, true))).toBe('ENGINE')
+  await run($, 'sportsball')
   expect(flatText(await mountBand($))).toBe('ENGINE')
+})
+
+test('the help text goes once a team is followed and returns after unfollowing', async ($, on) => {
+  harness(on, { [TEAM_ROUTE]: { body: schedule(finishedMatch) } }, followingValkyries)
+  await start($)
+  expect(flatText(await mountBand($))).toBe('ENGINE')
+
+  await run($, 'unfollow-team')
+
+  expect(flatText(await mountBand($))).toContain('/follow-team')
 })
 
 test('no live game leaves the engine drawing', async ($, on) => {

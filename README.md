@@ -63,7 +63,8 @@ on a single line. A "Powered by SportScore" credit, linking to
 sportscore.com, sits at the right of that row. It appears once, on the
 last game row, however many teams are shown, and drops to a row of its
 own underneath only when the terminal is too narrow for both. The band is
-empty when the team has no live game.
+empty when the team has no live game. Until you follow a team, it shows a
+line of help pointing at `/follow-team` instead.
 
 <!-- screenshot placeholder -->
 
