@@ -228,8 +228,10 @@ them, so a test must stub every event the mod touches or it fails with
   in `$.store`, keyed by logo URL. A failed logo is not retried until the
   next session.
 - The "Powered by SportScore" credit is a `Link` (licence requirement),
-  right-aligned on the last game row. It drops to its own row below only
-  when fewer than 20 columns would be left for the game text.
+  right-aligned on the last game row. The game text keeps
+  `MIN_GAME_COLUMNS` (60) and the credit gets what is left, 11 to 22
+  columns, wrapping to two lines when narrow. It drops to its own row
+  below only when it would get under 11.
 - A game is identified by `LiveGame.key`, its match `url` plus start
   `time`: the same fixture URL is reused for repeat matchups between two
   teams, so the URL alone would confuse them. Toasts fire when a followed

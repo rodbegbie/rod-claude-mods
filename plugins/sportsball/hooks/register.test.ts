@@ -891,12 +891,12 @@ test('too narrow for both, the attribution drops to its own right-aligned row be
   expect((tiny.children as Node[]).map(n => n.props?.width)).toEqual([10, 10])
 })
 
-test('the attribution stays on the game row while it gets 11 columns and the game 20, then drops below', async ($, on) => {
+test('the attribution stays on the game row while it gets 11 columns and the game 60, then drops below', async ($, on) => {
   harness(on, liveSchedule(), { ...followingValkyries, ...colouredLogos })
   await start($)
 
-  expect((await mountBand($, 35)).props?.flexDirection).not.toBe('column')
-  expect((await mountBand($, 34)).props?.flexDirection).toBe('column')
+  expect((await mountBand($, 75)).props?.flexDirection).not.toBe('column')
+  expect((await mountBand($, 74)).props?.flexDirection).toBe('column')
 })
 
 test('the attribution box takes what the game leaves, between 11 and 22 columns', async ($, on) => {
@@ -904,9 +904,9 @@ test('the attribution box takes what the game leaves, between 11 and 22 columns'
   await start($)
 
   const widths = async (bodyColumns: number) => ((await mountBand($, bodyColumns)).children as Node[]).map(n => n.props?.width)
-  expect(await widths(35)).toEqual([20, 11])
-  expect(await widths(40)).toEqual([20, 16])
-  expect(await widths(46)).toEqual([20, 22])
+  expect(await widths(75)).toEqual([60, 11])
+  expect(await widths(80)).toEqual([60, 16])
+  expect(await widths(86)).toEqual([60, 22])
   expect(await widths(100)).toEqual([74, 22])
 })
 
@@ -914,7 +914,7 @@ test('the attribution wraps to two lines in a narrow box instead of truncating',
   harness(on, liveSchedule(), { ...followingValkyries, ...colouredLogos })
   await start($)
 
-  const [, credit] = (await mountBand($, 35)).children as Node[]
+  const [, credit] = (await mountBand($, 75)).children as Node[]
 
   expect(walk(credit).find(n => n.type === 'Text')?.props?.wrap).toBe('wrap')
 })
