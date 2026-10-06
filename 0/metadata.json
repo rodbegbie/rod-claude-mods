@@ -209,6 +209,37 @@
         "label": "Skill: markdown",
         "default_collapsed": true
       }
+    },
+    {
+      "id": "claude-skill-toolu_01AKdfXs4dQMf2ZswtR1Yvjv",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "rod-voice"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "6d6ddb445453",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 804,
+        "end": 805,
+        "entry_ids": [
+          "b93dc344-1006-42e2-9e0b-8de4e813e2ac"
+        ],
+        "tool_use_id": "toolu_01AKdfXs4dQMf2ZswtR1Yvjv"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01AKdfXs4dQMf2ZswtR1Yvjv"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: rod-voice",
+        "default_collapsed": true
+      }
     }
   ],
   "session_metrics": {
