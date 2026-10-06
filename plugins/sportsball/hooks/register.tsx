@@ -29,6 +29,7 @@ const CREDIT_COLUMNS = 22
 const MIN_GAME_COLUMNS = 20
 const SEPARATOR = ' · '
 const SPORTSCORE_URL = 'https://sportscore.com'
+const FOLLOW_HELP = '🏀⚽ Sportsball: not following a team. Try /follow-team <team name> to see its live score here.'
 const SPORTS: Sport[] = ['basketball', 'football']
 const SPORT_EMOJI: Record<Sport, string> = { basketball: '🏀', football: '⚽' }
 const HAS_LIVE_MINUTE: Record<Sport, boolean> = { basketball: false, football: true }
@@ -511,6 +512,7 @@ export const register: Register = on => {
   })
 
   on('ui.select', { element: TEAM_SELECT }, async ($, e, next) => {
+    const result = await next(e)
     const picked = (await read($, choices)).find(choice => choiceValue(choice) === e.value)
     if (picked) {
       await update($, choices, () => [])
@@ -518,7 +520,7 @@ export const register: Register = on => {
       $.ui.toast(await follow($, picked))
     }
 
-    return next(e)
+    return result
   })
 
   on('command.run', { command: 'unfollow-team' }, async ($, e) => {
@@ -542,9 +544,14 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const data = await read($, reading)
-    if (e.props.hasSurvey || !data?.game || !(await read($, isOn))) return next(e)
-    const known = await read($, colours)
+    if (e.props.hasSurvey || !(await read($, isOn))) return next(e)
     const { Box, Text, Link } = $.ui.resolve(e)
+    if (!data?.game) {
+      if ((await followedTeams($)).length > 0) return next(e)
+
+      return <Text wrap="truncate-end" dimColor>{FOLLOW_HELP}</Text>
+    }
+    const known = await read($, colours)
     const { game, followedSide } = data
     const width = Math.max(MIN_BAND_COLUMNS, e.props.bodyColumns - COLLAPSE_CONTROL_COLUMNS)
 
