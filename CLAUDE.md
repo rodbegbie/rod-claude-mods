@@ -53,6 +53,10 @@ engine would refuse.
   `$.store` is a JSON file at
   `~/.claude/plugins/store/<mod>_inline-<hash>.json`, which shows what
   is followed and the cached colours.
+- To learn what the hook sandbox can do (the engine typings do not say),
+  put a throwaway mod in dev-mods that toasts the answer, read the
+  toast, then delete the mod. That is how local timezone and `Intl`
+  support were confirmed.
 
 ## Hook module constraints that `validate` enforces
 
@@ -103,8 +107,16 @@ them, so a test must stub every event the mod touches or it fails with
 - A throwing `ui.render` hook is swallowed and the engine draws its own
   tree, which looks like `next(e)` to a test.
 - The test runner has no `test.each`; loop and call `test` instead.
+- sportsball's fixtures hang off a fixed `now` (2026-10-04T21:00Z). Make
+  start times with `at(minutes)`. A fixture starting within hours of
+  `now` counts as an upcoming or recent game, so a "no game" case needs
+  an old `time` (as `finishedMatch` has). Tests run in the machine's
+  timezone, so build the expected kick-off text with the same
+  `Intl.DateTimeFormat` (`localTime`), never a literal.
 - `on(...)` stubs must all be registered before the test first calls
-  `$`, so one test cannot build two harnesses.
+  `$`, so one test cannot build two harnesses. To change what the API
+  returns between polls, mutate the route (sportsball's `rig(...)`
+  returns a `next(...)` for this).
 - Capture toasts with `on('ui.toast', ...)` and drive `session.measure` and
   `command.run` directly with `$.session.measure(...)` and
   `$.command.run(...)`.
@@ -165,9 +177,33 @@ them, so a test must stub every event the mod touches or it fails with
   League) and an incidents list one goal behind the score, and both
   give the plain toast. Own goals, penalties and a disallowed goal's
   shape are still unverified.
-- `reading` is null both when nothing is followed and when the
-  followed team has no live game. The "not following a team" help in
-  the band checks `followedTeams($)`, not `reading`, to tell them apart.
+- `reading.game` is null both when nothing is followed and when the
+  followed team has no game in range, and `reading.phase` (`live`,
+  `upcoming` or `finished`) is null with it. The "not following a team"
+  help in the band checks `followedTeams($)`, not `reading`, to tell
+  them apart.
+- `pickGame` chooses what the band shows: a live game, else the soonest
+  upcoming one, else the latest finished one. Upcoming means starting
+  within 2 hours, or up to `LATE_START_GRACE_MS` (30 minutes) past its
+  start. Finished means start plus `GAME_LENGTH_MS` (football 2 hours,
+  basketball 2.5) within the last 2 hours. The API has only the start
+  `time`, never an end time, hence the estimate.
+- SportScore leaves postponed fixtures as `upcoming` for ever: a
+  "Delayed" game from 2025-10-20 was still listed in 2026. The grace's
+  lower bound is what stops it showing as "Starting now" and hiding the
+  real next game.
+- `announcement` only runs when the previous reading was `live`.
+  Without that, a finished game left on show toasts "Full time" on every
+  poll. `pollDelay` is 30 seconds live, 60 seconds upcoming (the
+  countdown and the hand-off to live), 5 minutes otherwise.
+- An upcoming game reads `Starts 1:30 PM (in 1h 40m)`, in the user's
+  timezone and locale through `Intl.DateTimeFormat(undefined, ...)`; the
+  hook sandbox has both. The countdown is worked out at render from
+  `$.clock.now()`, so it moves only when the band redraws. Past the
+  start time it drops the countdown.
+- The game row and the help text use `wrap="wrap"`, not `truncate-end`,
+  so a long matchup continues on a second row. Tests find the game row
+  by `wrap === 'wrap'`.
 - A `ui.select` hook must `await next(e)` before it closes the pane.
   The engine holds an `onSelect` handle only while the pane is drawn,
   so closing first makes `next(e)` throw "no handler is held under
@@ -175,8 +211,8 @@ them, so a test must stub every event the mod touches or it fails with
   live pick shows it.
 - `/follow-team` searches every sport in `SPORTS` (one request each, in
   order) and fails the whole lookup if any request fails. A sport needs
-  an entry in `SPORTS` and in `SPORT_EMOJI`, and a `Sport` member in
-  `types/index.d.ts`.
+  an entry in `SPORTS`, `SPORT_EMOJI` and `GAME_LENGTH_MS`, and a `Sport`
+  member in `types/index.d.ts`.
 - Logo colours come from `LOGO_COLOUR_SCRIPT`, a Python script held as a
   `String.raw` constant in `register.tsx`. The pytest in
   `plugins/sportsball/tests` extracts it from there, so there is one
@@ -256,6 +292,13 @@ them, so a test must stub every event the mod touches or it fails with
   branch locally and on the remote, and leave the local `entire/<sha>`
   checkpoint branch alone.
 - README screenshots live in `docs/`, not inside a plugin folder.
+- Start a trail by making the feature branch yourself (`git switch -c
+  feature/<issue>-<name>`), then `entire trail create --title ... --type
+  feature --body ...`. It pushes the branch and opens the trail and its
+  draft PR.
+- Lint Markdown with `markdownlint <file>` and check its exit status
+  before committing, not after. README is clean; CLAUDE.md has a few
+  long lines that predate this check.
 - Merge PRs with a merge commit, not a squash, so the commits that Entire
   checkpoints point at survive.
 - The first `git push` after a commit is often rejected with a bare
