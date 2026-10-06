@@ -1,0 +1,96 @@
+push and open a trail.  then let's keep an eye out for another goal. It's half time right now, so it'll be a while before the game kicks off again
+
+---
+
+<task-notification>
+<task-id>br57g7sab</task-id>
+<summary>Monitor event: "Honduras v Jamaica score and status changes"</summary>
+<event>Half time HT' Honduras 0-1 Jamaica | last goal incident: Tyreece Campbell (0-1, type Goal)</event>
+If this event is something the user would act on now, send a PushNotification. Routine or benign output doesn't need one.
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>br57g7sab</task-id>
+<summary>Monitor event: "Honduras v Jamaica score and status changes"</summary>
+<event>2nd half 46' Honduras 0-1 Jamaica | last goal incident: Tyreece Campbell (0-1, type Goal)</event>
+If this event is something the user would act on now, send a PushNotification. Routine or benign output doesn't need one.
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>br57g7sab</task-id>
+<summary>Monitor event: "Honduras v Jamaica score and status changes"</summary>
+<event>2nd half 52' Honduras 1-1 Jamaica | last goal incident: Luis Palma (1-1, type Goal)</event>
+If this event is something the user would act on now, send a PushNotification. Routine or benign output doesn't need one.
+</task-notification>
+
+---
+
+I wasn't watching. Are there any logs you can check?
+
+---
+
+<task-notification>
+<task-id>br57g7sab</task-id>
+<summary>Monitor event: "Honduras v Jamaica score and status changes"</summary>
+<event>[Monitor expired after 30m with 3 events delivered. Re-arm it if you still need the watch.]</event>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bebcqc9tw</task-id>
+<summary>Monitor event: "Honduras v Jamaica score and status changes (re-armed)"</summary>
+<event>2nd half 65' Honduras 1-1 Jamaica | last goal incident: Luis Palma (1-1, type Goal)</event>
+If this event is something the user would act on now, send a PushNotification. Routine or benign output doesn't need one.
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bebcqc9tw</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/private/tmp/claude-502/-Users-rod-build-rod-claude-mods/0dbc7037-ca6b-43d8-86a2-4b4fb420570c/tasks/bebcqc9tw.output</output-file>
+<status>completed</status>
+<summary>Monitor "Honduras v Jamaica score and status changes (re-armed)" stream ended</summary>
+<event>Finished None' Honduras 1-1 Jamaica | last goal incident: Luis Palma (1-1, type Goal)
+MATCH FINISHED</event>
+If this event is something the user would act on now, send a PushNotification. Routine or benign output doesn't need one.
+</task-notification>
+
+---
+
+The full time notification came through.  OK, let's follow the rewa-fc-vs-nasinu-fc game and see if it fires a noticicaiton if there's a goal.  Let me switch to following Rewa FC!
+
+---
+
+<task-notification>
+<task-id>bfborsf84</task-id>
+<summary>Monitor event: "Rewa FC v Nasinu FC score and status changes"</summary>
+<event>1st half 15' Nasinu FC 0-1 Rewa FC | last goal incident:  (0-1, type Goal, side away)</event>
+If this event is something the user would act on now, send a PushNotification. Routine or benign output doesn't need one.
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bfborsf84</task-id>
+<summary>Monitor event: "Rewa FC v Nasinu FC score and status changes"</summary>
+<event>1st half 24' Nasinu FC 0-2 Rewa FC | last goal incident:  (0-1, type Goal, side away)</event>
+If this event is something the user would act on now, send a PushNotification. Routine or benign output doesn't need one.
+</task-notification>
+
+---
+
+[Image #1] Yup, this is what i got.
+
+---
+
+OK, undraft 11 and 12.  I'll do a quick code review.
+
+---
+
+OK, I approved both trails. Merge the PRs.
