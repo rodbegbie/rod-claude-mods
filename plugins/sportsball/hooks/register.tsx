@@ -616,7 +616,7 @@ export const register: Register = on => {
     if (!data?.game) {
       if ((await followedTeams($)).length > 0) return next(e)
 
-      return <Text wrap="truncate-end" dimColor>{FOLLOW_HELP}</Text>
+      return <Text wrap="wrap" dimColor>{FOLLOW_HELP}</Text>
     }
     const known = await read($, colours)
     const { game, followedSide } = data
@@ -632,7 +632,7 @@ export const register: Register = on => {
             ? game.statusText
             : `${game.statusText} ${game.minute}'`
     const gameText = (
-      <Text wrap="truncate-end" dimColor={data.isStale}>
+      <Text wrap="wrap" dimColor={data.isStale}>
         {SPORT_EMOJI[data.sport]}{' '}
         <Text color={known[game.homeLogo]}>{game.home}</Text>
         {' '}

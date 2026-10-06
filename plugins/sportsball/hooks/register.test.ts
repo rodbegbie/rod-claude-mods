@@ -738,8 +738,8 @@ async function mountBand($: any, bodyColumns = 100, hasSurvey = false): Promise<
 
 const colouredLogos = { colours: { [HOME_LOGO]: '#b896d4', [AWAY_LOGO]: '#bc945a' } }
 
-const truncatingRows = (tree: Node) => walk(tree).filter(n => n.props?.wrap === 'truncate-end')
-const gameRow = (tree: Node) => truncatingRows(tree)[0]
+const wrappingRows = (tree: Node) => walk(tree).filter(n => n.props?.wrap === 'wrap')
+const gameRow = (tree: Node) => wrappingRows(tree)[0]
 const links = (tree: Node) => walk(tree).filter(n => n.type === 'Link')
 
 test('the game row starts with the sport emoji and carries no attribution', async ($, on) => {
@@ -820,7 +820,7 @@ test('a stale reading is drawn dimmed and a fresh one is not', async ($, on) => 
   const routes: Record<string, Route> = liveSchedule()
   harness(on, routes, { ...followingValkyries, ...colouredLogos })
   await start($)
-  const isDim = (tree: Node) => walk(tree).find(n => n.props?.wrap === 'truncate-end')?.props?.dimColor === true
+  const isDim = (tree: Node) => walk(tree).find(n => n.props?.wrap === 'wrap')?.props?.dimColor === true
   expect(isDim(await mountBand($))).toBe(false)
   routes[TEAM_ROUTE] = { status: 500, body: 'oops' }
 
@@ -846,7 +846,7 @@ test('following no team shows help on using /follow-team', async ($, on) => {
   const tree = await mountBand($)
 
   expect(flatText(tree)).toContain('/follow-team <team name>')
-  expect(tree.props?.wrap).toBe('truncate-end')
+  expect(tree.props?.wrap).toBe('wrap')
 })
 
 test('the help text gives way to a survey and to toggling sportsball off', async ($, on) => {
@@ -1711,4 +1711,15 @@ test('a game 30 minutes past its start time that has not gone live is still show
   next(upcomingIn(-31))
   await start($)
   expect((await readingOf($)).game).toBeNull()
+})
+
+test('the game row wraps rather than truncates, and only the credit truncates', async ($, on) => {
+  rig(on, upcomingIn(100, { home: 'Alianza Universidad de Huánuco', away: 'Club Deportivo Universidad San Martin de Porres' }))
+  await start($)
+
+  const tree = await mountBand($, 40)
+
+  expect(gameRow(tree).props?.wrap).toBe('wrap')
+  expect(flatText(gameRow(tree))).toContain('Club Deportivo Universidad San Martin de Porres')
+  expect(walk(tree).filter(n => n.props?.wrap === 'truncate-end').map(n => flatText(n))).toEqual(['Powered by SportScore'])
 })
