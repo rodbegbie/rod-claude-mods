@@ -1,0 +1,5 @@
+Can we change the layout to wrap text instead of truncating it?
+
+---
+
+Wrap the help text too.
