@@ -27,6 +27,7 @@ function harness(on: any, routes: Record<string, Route>, initial: Record<string,
   const store = new Map<string, unknown>(Object.entries(initial))
   const urls: string[] = []
   const delays: number[] = []
+  const staggers: number[] = []
   const clock = { now }
   const proc = {
     xcodeExit: 0,
@@ -53,7 +54,7 @@ function harness(on: any, routes: Record<string, Route>, initial: Record<string,
   readingWrites = []
   on('state.set', async (_$: any, e: any, next: any) => {
     states[e.key] = e.value
-    if (e.key === 'reading') readingWrites.push(e.value)
+    if (e.key === 'readings') readingWrites.push(Object.values(e.value ?? {})[0] ?? null)
     return next(e)
   })
   on('http.fetch', async (_$: any, e: any) => {
@@ -70,7 +71,10 @@ function harness(on: any, routes: Record<string, Route>, initial: Record<string,
   on('store.delete', async (_$: any, e: any) => (store.delete(e.key), { value: undefined }))
   on('session.start', async () => ({ cwd: '/tmp' }))
   on('command.register', async () => ({ value: undefined }))
-  on('clock.after', (_$: any, e: any) => (e.ms === 0 ? Promise.resolve({ value: undefined }) : (delays.push(e.ms), new Promise(() => {}))))
+  on('clock.after', (_$: any, e: any) => {
+    if (e.ms > 0 && e.ms < 10_000) staggers.push(e.ms)
+    return e.ms < 10_000 ? Promise.resolve({ value: undefined }) : (delays.push(e.ms), new Promise(() => {}))
+  })
   on('clock.now', async () => ({ value: clock.now }))
   const toasts: { text: string; timeoutMs?: number }[] = []
   on('ui.toast', async (_$: any, e: any) => (toasts.push({ text: e.text, timeoutMs: e.timeoutMs }), { value: undefined }))
@@ -88,7 +92,7 @@ function harness(on: any, routes: Record<string, Route>, initial: Record<string,
   const panes = { opened: [] as any[], closed: [] as any[] }
   on('ui.open', async (_$: any, e: any) => (panes.opened.push(e), { value: { isPlaced: true } }))
   on('ui.close', async (_$: any, e: any) => (panes.closed.push(e), { value: undefined }))
-  return { store, urls, delays, clock, proc, toasts, asks, panes }
+  return { store, urls, delays, staggers, clock, proc, toasts, asks, panes }
 }
 
 const liveMatch = {
@@ -119,7 +123,10 @@ const schedule = (...matches: object[]) => ({ sport: 'basketball', team: valkyri
 const followingValkyries = { followed: [{ sport: 'basketball', ...valkyries }] }
 const TEAM_ROUTE = 'slug=golden-state-valkyries'
 
-const readingOf = async (_$: any) => states.reading ?? null
+const readingOf = async (_$: any) => Object.values(states.readings ?? {})[0] ?? null
+const readingFor = (key: string) => states.readings?.[key] ?? null
+const bluefireRoute = 'slug=bluefire-valkyries-w'
+const followingBoth = { followed: [{ sport: 'basketball', ...valkyries }, { sport: 'basketball', ...bluefire }] }
 
 const start = ($: any) => $.session.start({ source: 'startup', cwd: '/tmp' })
 const run = ($: any, command: string, args = '') => $.command.run({ command, args })

@@ -4,7 +4,7 @@ import type { EngineInterface, Register } from 'claude-code'
 import type { Choice, Followed, LiveGame, Phase, Reading, Sport } from '../types'
 
 const isOn = atom({ plugin: 'sportsball', key: 'isOn' } as const, true)
-const reading = atom({ plugin: 'sportsball', key: 'reading' } as const, null)
+const readings = atom({ plugin: 'sportsball', key: 'readings' } as const, {})
 const colours = atom({ plugin: 'sportsball', key: 'colours' } as const, {})
 const choices = atom({ plugin: 'sportsball', key: 'choices' } as const, [])
 
@@ -18,6 +18,7 @@ const TEAM_SELECT = 'team'
 const LIVE_POLL_MS = 30_000
 const UPCOMING_POLL_MS = 60_000
 const IDLE_POLL_MS = 300_000
+const STAGGER_MS = 500
 const STALE_MS = 10 * 60_000
 const WINDOW_MS = 2 * 60 * 60_000
 const MINUTE_MS = 60_000
@@ -41,8 +42,9 @@ const HAS_LIVE_MINUTE: Record<Sport, boolean> = { basketball: false, football: t
 const TOAST_ON_SCORE: Record<Sport, boolean> = { basketball: false, football: true }
 const GAME_LENGTH_MS: Record<Sport, number> = { basketball: 150 * MINUTE_MS, football: 120 * MINUTE_MS }
 
-let pendingPoll: { cancel: () => void } | null = null
-let pollGeneration = 0
+const pendingPolls = new Map<string, { cancel: () => void }>()
+const activePolls = new Map<string, number>()
+let lastGeneration = 0
 let helperUsable: boolean | null = null
 const attemptedLogos = new Set<string>()
 
@@ -253,12 +255,12 @@ function pickLabels(hits: TeamHit[], leagues: string[]): string[] {
 
 async function follow($: EngineInterface, hit: TeamHit): Promise<string> {
   await $.store.set('followed', [{ sport: hit.sport, slug: hit.slug, name: hit.name }])
-  await poll($)
+  await syncPolls($)
 
   return `Now following ${hit.name}.`
 }
 
-const choiceValue = (choice: TeamHit) => `${choice.sport}/${choice.slug}`
+const teamKey = (team: Pick<Followed, 'sport' | 'slug'>) => `${team.sport}/${team.slug}`
 
 async function followedTeams($: EngineInterface): Promise<Followed[]> {
   const stored = await $.store.get('followed')
@@ -487,31 +489,71 @@ function startLabel(startsAt: number, now: number): string {
   return rest === 0 ? `${label} (in ${hours}h)` : `${label} (in ${hours}h ${rest}m)`
 }
 
-async function poll($: EngineInterface): Promise<void> {
-  const generation = ++pollGeneration
-  const isLatest = () => generation === pollGeneration
-  pendingPoll?.cancel()
-  pendingPoll = null
-  const [team] = await followedTeams($)
-  if (!team) {
-    await update($, reading, () => null)
-    return
+function withReading(all: Record<string, Reading>, key: string, next: Reading | null): Record<string, Reading> {
+  if (next === null) {
+    const rest = { ...all }
+    delete rest[key]
+
+    return rest
   }
+
+  return { ...all, [key]: next }
+}
+
+function stopPoll(key: string): void {
+  pendingPolls.get(key)?.cancel()
+  pendingPolls.delete(key)
+  activePolls.delete(key)
+}
+
+async function dropUnfollowed($: EngineInterface, followed: Followed[]): Promise<void> {
+  const kept = new Set(followed.map(teamKey))
+  const shown = Object.keys(await read($, readings))
+  const gone = new Set([...activePolls.keys(), ...shown].filter(key => !kept.has(key)))
+  if (gone.size === 0) return
+  gone.forEach(stopPoll)
+  await update($, readings, all => Object.fromEntries(Object.entries(all).filter(([key]) => !gone.has(key))))
+}
+
+async function syncPolls($: EngineInterface): Promise<void> {
+  const followed = await followedTeams($)
+  await dropUnfollowed($, followed)
+  for (const team of followed) {
+    if (!activePolls.has(teamKey(team))) await poll($, team)
+  }
+}
+
+async function startPolls($: EngineInterface): Promise<void> {
+  const followed = await followedTeams($)
+  await dropUnfollowed($, followed)
+  const [first, ...rest] = followed
+  if (!first) return
+  rest.forEach((team, i) => $.clock.after((i + 1) * STAGGER_MS, () => void poll($, team).catch(() => {})))
+  await poll($, first)
+}
+
+async function poll($: EngineInterface, team: Followed): Promise<void> {
+  const key = teamKey(team)
+  const generation = ++lastGeneration
+  activePolls.set(key, generation)
+  const isLatest = () => activePolls.get(key) === generation
+  pendingPolls.get(key)?.cancel()
+  pendingPolls.delete(key)
   const games = await fetchGames($, team)
-  const [current] = await followedTeams($)
+  const isFollowed = (await followedTeams($)).some(followed => teamKey(followed) === key)
   const now = await $.clock.now()
-  const previous = await read($, reading)
-  if (!isLatest() || current?.slug !== team.slug || current.sport !== team.sport) return
+  const previous = (await read($, readings))[key] ?? null
+  if (!isLatest() || !isFollowed) return
   const next = nextReading(games === 'error' ? 'error' : pickGame(games, team.sport, now), team, previous, now)
-  await update($, reading, () => next)
+  await update($, readings, all => withReading(all, key, next))
   if (!isLatest()) return
   if (games !== 'error' && (await read($, isOn)) && isLatest()) {
     const toast = announcement(team.sport, previous, games)
     if (toast) $.ui.toast(toast, { timeoutMs: TOAST_MS })
   }
   if (!isLatest()) return
-  pendingPoll?.cancel()
-  pendingPoll = $.clock.after(pollDelay(next?.phase ?? null), () => poll($))
+  pendingPolls.get(key)?.cancel()
+  pendingPolls.set(key, $.clock.after(pollDelay(next?.phase ?? null), () => poll($, team)))
   if (next?.game) {
     const game = next.game
     $.clock.after(0, () => void ensureColours($, game).catch(() => {}))
@@ -535,7 +577,7 @@ export const register: Register = on => {
       description: 'Show or hide the live score above the prompt',
     })
     await loadColours($)
-    await poll($)
+    await startPolls($)
 
     return next(e)
   })
@@ -570,7 +612,7 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'Pane', requestId: TEAM_PANE }, async ($, e) => {
     const { Box, Select } = $.ui.resolve(e)
-    const options = (await read($, choices)).map(choice => ({ value: choiceValue(choice), label: choice.label }))
+    const options = (await read($, choices)).map(choice => ({ value: teamKey(choice), label: choice.label }))
 
     return (
       <Box flexDirection="column">
@@ -581,7 +623,7 @@ export const register: Register = on => {
 
   on('ui.select', { element: TEAM_SELECT }, async ($, e, next) => {
     const result = await next(e)
-    const picked = (await read($, choices)).find(choice => choiceValue(choice) === e.value)
+    const picked = (await read($, choices)).find(choice => teamKey(choice) === e.value)
     if (picked) {
       await update($, choices, () => [])
       await $.ui.close({ id: TEAM_PANE })
@@ -599,7 +641,7 @@ export const register: Register = on => {
       return { text: `Not following ${name}.` }
     }
     await $.store.set('followed', [])
-    await poll($)
+    await syncPolls($)
 
     return { text: `Stopped following ${team.name}.` }
   })
@@ -611,7 +653,7 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    const data = await read($, reading)
+    const data = Object.values(await read($, readings)).find(r => r.game) ?? null
     if (e.props.hasSurvey || !(await read($, isOn))) return next(e)
     const { Box, Text, Link } = $.ui.resolve(e)
     if (!data?.game) {
