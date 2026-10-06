@@ -1,0 +1,5 @@
+/claude-md-management:revise-claude-md
+
+---
+
+yeah, commit the changes on main and push it.
