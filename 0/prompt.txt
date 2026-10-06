@@ -1,0 +1,1 @@
+Can the credit box have a minimum width of 11 columns and max of 22?
