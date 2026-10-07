@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.11.4",
+  "checkpoint_id": "01M4AEYE3PP5NT05E8JNGTYE0Q",
+  "strategy": "manual-commit",
+  "branch": "feature/8-follow-multiple-teams",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "docs/superpowers/plans/2026-10-06-sportsball-follow-multiple-teams.md",
+    "docs/superpowers/specs/2026-10-06-sportsball-follow-multiple-teams-design.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 32,
+    "cache_creation_tokens": 511576,
+    "cache_read_tokens": 3822243,
+    "output_tokens": 14629,
+    "api_call_count": 16
+  }
+}
