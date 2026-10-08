@@ -31,11 +31,12 @@ paths:
   League) and an incidents list one goal behind the score, and both
   give the plain toast. Own goals, penalties and a disallowed goal's
   shape are still unverified.
-- `reading.game` is null both when nothing is followed and when the
-  followed team has no game in range, and `reading.phase` (`live`,
-  `upcoming` or `finished`) is null with it. The "not following a team"
-  help in the band checks `followedTeams($)`, not `reading`, to tell
-  them apart.
+- `readings` holds one `Reading` per followed team, keyed `sport/slug`
+  (`teamKey`). A team with no reading, or one whose `game` is null, has
+  no game in range, and `phase` (`live`, `upcoming` or `finished`) is
+  null with it. The "not following a team" help in the band checks
+  `followedTeams($)`, not `readings`, to tell nothing followed from
+  nothing to show.
 - `pickGame` chooses what the band shows: a live game, else the soonest
   upcoming one, else the latest finished one. Upcoming means starting
   within 2 hours, or up to `LATE_START_GRACE_MS` (30 minutes) past its
@@ -130,8 +131,57 @@ paths:
   A status change and a score change in one poll give one toast, labelled
   by the status. The minute alone never toasts. There is no clock in
   `status_text`.
-- Each `poll` takes a generation number; only the latest run may
+- Each followed team has its own poll loop. `poll($, team)` takes a
+  generation from a module counter and records it in `activePolls` under
+  the team's key; only the run whose generation is still there may
   publish, toast and schedule, so an older fetch finishing late is
-  discarded, and the followed sport and slug are re-checked too. A
-  reading is only carried over as stale for the same sport and slug.
-  Keep these checks if you touch `poll` or `nextReading`.
+  discarded, and the team is re-checked against `followedTeams($)` too.
+  The counter is global, not per team, so a refollowed team never
+  matches an old poll. A reading is only carried over as stale for the
+  same sport and slug. Keep these checks if you touch `poll` or
+  `nextReading`.
+- `session.start` runs `startPolls`, which re-polls every followed team
+  (the first awaited, the rest staggered `STAGGER_MS` apart) and stops
+  the loops and readings of teams no longer followed. Tests call
+  `start` repeatedly to force a fresh poll, so it must not skip a team
+  that already has a loop. Follow and unfollow run `syncPolls`, which
+  only starts missing loops (staggered the same way) and drops removed
+  teams. A team waiting on its stagger timer counts as active: it is
+  marked in `activePolls` and its timer sits in `pendingPolls`, so
+  `syncPolls` skips it and a repeat `startPolls` cancels and replaces the
+  timer instead of fetching twice. A poll that ends without scheduling
+  its next run (its team is no longer followed, or it threw) clears its
+  own `activePolls` key in a `finally`, so nothing blocks a restart. The
+  first poll in `pollStaggered` is caught like the staggered ones, so a
+  failure cannot escape `session.start` or `/follow-team`.
+- A failed fetch doubles that team's next delay for each consecutive
+  error (`errorCounts`), capped at `IDLE_POLL_MS`, and a success resets
+  it. Without it a blown budget (HTTP 429) would be retried every 30 or
+  60 seconds by every followed team. Module variables
+  reset when the mod hot-reloads but `$.state` does not, so
+  `dropUnfollowed` also drops readings with no loop.
+- Followed teams are capped at `MAX_FOLLOWED` (20) to protect the API
+  budget: each idle team costs 288 requests a day. A team that plays
+  costs about 620 more that day (football: 120 upcoming polls, 240 live
+  polls of two requests each, about 24 finished polls; basketball about
+  420). With 20 followed, roughly 7 playing the same day reaches the
+  ~10,000 a day allowance. These are estimates from the poll cadences,
+  not measured against SportScore's counter. `followedTeams($)`
+  drops duplicates by `teamKey`, so a hand-edited store polls a team
+  once, but it does not truncate a list over the cap.
+- Two followed teams in one game poll separately, so both see the same
+  change. `lastToast` (game key to last toast text) stops the second
+  from toasting again.
+- `bandRows` makes one row per game (the first reading published wins a
+  shared game, so which side is bold can vary), ordered live, then
+  upcoming by start, then finished by latest start. Live rows keep the
+  order their readings were first published, not follow order. The
+  band shows `MAX_BAND_ROWS` (6) rows, the credit rides on the last
+  game row, and a dim `+N more games` line follows when games are
+  hidden. With one row and nothing hidden the hook
+  returns the row itself, not a wrapper, because the layout tests
+  assert that tree shape.
+- The `sportsball-teams` pane serves both follow and unfollow picks,
+  told apart by the `pickAction` atom. The follow-team pane branch and
+  the unfollow-team pane branch each set it before opening, because
+  dismissing a pane leaves it set.

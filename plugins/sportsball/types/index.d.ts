@@ -34,10 +34,11 @@ export type Reading = {
 declare module 'claude-code' {
   interface PluginState {
     sportsball: {
-      reading: Reading | null
+      readings: Record<string, Reading>
       isOn: boolean
       colours: Record<string, string>
       choices: Choice[]
+      pickAction: 'follow' | 'unfollow'
     }
   }
 }

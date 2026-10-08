@@ -27,6 +27,7 @@ function harness(on: any, routes: Record<string, Route>, initial: Record<string,
   const store = new Map<string, unknown>(Object.entries(initial))
   const urls: string[] = []
   const delays: number[] = []
+  const staggers: number[] = []
   const clock = { now }
   const proc = {
     xcodeExit: 0,
@@ -53,7 +54,7 @@ function harness(on: any, routes: Record<string, Route>, initial: Record<string,
   readingWrites = []
   on('state.set', async (_$: any, e: any, next: any) => {
     states[e.key] = e.value
-    if (e.key === 'reading') readingWrites.push(e.value)
+    if (e.key === 'readings') readingWrites.push(Object.values(e.value ?? {})[0] ?? null)
     return next(e)
   })
   on('http.fetch', async (_$: any, e: any) => {
@@ -70,8 +71,19 @@ function harness(on: any, routes: Record<string, Route>, initial: Record<string,
   on('store.delete', async (_$: any, e: any) => (store.delete(e.key), { value: undefined }))
   on('session.start', async () => ({ cwd: '/tmp' }))
   on('command.register', async () => ({ value: undefined }))
-  on('clock.after', (_$: any, e: any) => (e.ms === 0 ? Promise.resolve({ value: undefined }) : (delays.push(e.ms), new Promise(() => {}))))
-  on('clock.now', async () => ({ value: clock.now }))
+  const staggerGate = { hold: undefined as Promise<void> | undefined }
+  on('clock.after', (_$: any, e: any) => {
+    if (e.ms > 0 && e.ms < 10_000) {
+      staggers.push(e.ms)
+      return (async () => (await staggerGate.hold, { value: undefined }))()
+    }
+    return e.ms === 0 ? Promise.resolve({ value: undefined }) : (delays.push(e.ms), new Promise(() => {}))
+  })
+  const faults = { clockNow: false }
+  on('clock.now', async () => {
+    if (faults.clockNow) throw new Error('boom')
+    return { value: clock.now }
+  })
   const toasts: { text: string; timeoutMs?: number }[] = []
   on('ui.toast', async (_$: any, e: any) => (toasts.push({ text: e.text, timeoutMs: e.timeoutMs }), { value: undefined }))
   on('ui.render', async () => ({ type: 'Text', children: ['ENGINE'] }))
@@ -88,7 +100,7 @@ function harness(on: any, routes: Record<string, Route>, initial: Record<string,
   const panes = { opened: [] as any[], closed: [] as any[] }
   on('ui.open', async (_$: any, e: any) => (panes.opened.push(e), { value: { isPlaced: true } }))
   on('ui.close', async (_$: any, e: any) => (panes.closed.push(e), { value: undefined }))
-  return { store, urls, delays, clock, proc, toasts, asks, panes }
+  return { store, urls, delays, staggers, staggerGate, faults, clock, proc, toasts, asks, panes }
 }
 
 const liveMatch = {
@@ -119,7 +131,10 @@ const schedule = (...matches: object[]) => ({ sport: 'basketball', team: valkyri
 const followingValkyries = { followed: [{ sport: 'basketball', ...valkyries }] }
 const TEAM_ROUTE = 'slug=golden-state-valkyries'
 
-const readingOf = async (_$: any) => states.reading ?? null
+const readingOf = async (_$: any) => Object.values(states.readings ?? {})[0] ?? null
+const readingFor = (key: string) => states.readings?.[key] ?? null
+const bluefireRoute = 'slug=bluefire-valkyries-w'
+const followingBoth = { followed: [{ sport: 'basketball', ...valkyries }, { sport: 'basketball', ...bluefire }] }
 
 const start = ($: any) => $.session.start({ source: 'startup', cwd: '/tmp' })
 const run = ($: any, command: string, args = '') => $.command.run({ command, args })
@@ -397,17 +412,23 @@ test('follow-team reports a failed lookup and stores nothing', async ($, on) => 
   expect(h.store.get('followed')).toBeUndefined()
 })
 
-test('follow-team replaces the team already followed', async ($, on) => {
+const bluefireLive = { ...liveMatch, home: bluefire.name, away: 'Other Team', url: '/basketball/match/bluefire-other/' }
+const bluefireSchedule = (...matches: object[]) => ({ ...schedule(...matches), team: bluefire })
+const VALKYRIES_KEY = 'basketball/golden-state-valkyries'
+const BLUEFIRE_KEY = 'basketball/bluefire-valkyries-w'
+
+test('follow-team adds to the teams already followed', async ($, on) => {
   const h = harness(
     on,
-    { ...searchRoutes([bluefire]) },
-    { followed: [{ sport: 'basketball', ...valkyries }] },
+    { ...searchRoutes([bluefire]), [TEAM_ROUTE]: { body: schedule(liveMatch) }, [bluefireRoute]: { body: bluefireSchedule(bluefireLive) } },
+    followingValkyries,
   )
   await start($)
 
   await run($, 'follow-team', 'bluefire')
 
-  expect(h.store.get('followed')).toEqual([{ sport: 'basketball', ...bluefire }])
+  expect(h.store.get('followed')).toEqual([{ sport: 'basketball', ...valkyries }, { sport: 'basketball', ...bluefire }])
+  expect(Object.keys(states.readings).sort()).toEqual([BLUEFIRE_KEY, VALKYRIES_KEY])
 })
 
 test('unfollow-team clears the followed team', async ($, on) => {
@@ -574,7 +595,7 @@ test('a poll that returns after unfollow-team is discarded', async ($, on) => {
   expect(await readingOf($)).toBeNull()
 })
 
-test('a poll that returns after switching teams is discarded', async ($, on) => {
+test('following another team does not discard the poll already in flight', async ($, on) => {
   let release!: () => void
   let entered!: () => void
   const gate = new Promise<void>(resolve => (release = resolve))
@@ -583,7 +604,7 @@ test('a poll that returns after switching teams is discarded', async ($, on) => 
     on,
     {
       [TEAM_ROUTE]: { body: schedule(liveMatch), gate, onFetch: entered },
-      'slug=bluefire-valkyries-w': { body: { ...schedule(finishedMatch), team: bluefire } },
+      [bluefireRoute]: { body: bluefireSchedule(bluefireLive) },
       ...searchRoutes([bluefire]),
     },
     followingValkyries,
@@ -595,8 +616,7 @@ test('a poll that returns after switching teams is discarded', async ($, on) => 
   release()
   await starting
 
-  expect(readingWrites.filter(r => r?.game)).toEqual([])
-  expect((await readingOf($)).game).toBeNull()
+  expect(Object.keys(states.readings).sort()).toEqual([BLUEFIRE_KEY, VALKYRIES_KEY])
 })
 
 const HOME_LOGO = 'https://img.example/valkyries.png'
@@ -1406,7 +1426,7 @@ test('a basketball score change still stays silent', async ($, on) => {
   expect(h.toasts).toEqual([])
 })
 
-test('a failed first fetch after switching teams does not keep the previous team scoreboard', async ($, on) => {
+test('a failed first fetch for a newly followed team keeps the other team reading', async ($, on) => {
   const routes: Record<string, Route> = {
     [TEAM_ROUTE]: { body: schedule(liveMatch) },
     'slug=atletico-atlanta': { status: 500, body: 'oops' },
@@ -1414,11 +1434,11 @@ test('a failed first fetch after switching teams does not keep the previous team
   }
   harness(on, routes, { ...followingValkyries, ...colouredLogos })
   await start($)
-  expect((await readingOf($)).game.home).toBe('Golden State Valkyries')
 
   await run($, 'follow-team', 'atletico atlanta')
 
-  expect(await readingOf($)).toBeNull()
+  expect(readingFor(VALKYRIES_KEY).game.home).toBe('Golden State Valkyries')
+  expect(readingFor('football/atletico-atlanta')).toBeNull()
 })
 
 test('a failed fetch for the same team still keeps its last reading, dimmed', async ($, on) => {
@@ -1742,4 +1762,424 @@ test('nothing in the band truncates: the game row wraps', async ($, on) => {
   expect(gameRow(tree).props?.wrap).toBe('wrap')
   expect(flatText(gameRow(tree))).toContain('Club Deportivo Universidad San Martin de Porres')
   expect(walk(tree).filter(n => n.props?.wrap === 'truncate-end')).toEqual([])
+})
+
+test('following a team already followed says so and adds nothing', async ($, on) => {
+  const h = harness(on, searchRoutes([valkyries]), followingValkyries)
+  await start($)
+
+  const { text } = await run($, 'follow-team', 'valkyries')
+
+  expect(text).toBe('Already following Golden State Valkyries.')
+  expect(h.store.get('followed')).toHaveLength(1)
+})
+
+test('following past the cap is refused', async ($, on) => {
+  const full = manyTeams(20).map(team => ({ sport: 'basketball', ...team }))
+  const h = harness(on, searchRoutes([bluefire]), { followed: full })
+  await start($)
+
+  const { text } = await run($, 'follow-team', 'bluefire')
+
+  expect(text).toBe('You can follow at most 20 teams. Unfollow one first.')
+  expect(h.store.get('followed')).toHaveLength(20)
+})
+
+test('a store listing the same team twice polls it once', async ($, on) => {
+  const h = harness(on, liveSchedule(), { followed: [...followingValkyries.followed, ...followingValkyries.followed] })
+
+  await start($)
+  await settle()
+
+  expect(h.urls.filter(url => url.includes(TEAM_ROUTE))).toHaveLength(1)
+})
+
+test('each followed team polls on its own cadence', async ($, on) => {
+  const h = harness(on, { [TEAM_ROUTE]: { body: schedule(liveMatch) }, [bluefireRoute]: { body: bluefireSchedule(finishedMatch) } }, followingBoth)
+
+  await start($)
+  await settle()
+
+  expect([...h.delays].sort((a, b) => a - b)).toEqual([30_000, 300_000])
+})
+
+test('session start staggers the followed teams', async ($, on) => {
+  const h = harness(on, {}, followingBoth)
+
+  await start($)
+  await settle()
+
+  expect(h.staggers).toEqual([500])
+})
+
+test('a failing team does not disturb a live one', async ($, on) => {
+  const routes: Record<string, Route> = {
+    [TEAM_ROUTE]: { body: schedule(inPlay('Half time')) },
+    [bluefireRoute]: { status: 500, body: 'oops' },
+  }
+  const h = harness(on, routes, { ...followingBoth, ...colouredLogos })
+  await start($)
+  await settle()
+  routes[TEAM_ROUTE] = { body: schedule(inPlay('3rd quarter')) }
+
+  await start($)
+  await settle()
+
+  expect(readingFor(VALKYRIES_KEY).game.statusText).toBe('3rd quarter')
+  expect(readingFor(BLUEFIRE_KEY)).toBeNull()
+  expect(h.toasts.map(toast => toast.text)).toEqual(['🏀 3rd quarter: Golden State Valkyries 34 - 31 Las Vegas Aces'])
+})
+
+test('two followed teams in one game toast once', async ($, on) => {
+  const routes: Record<string, Route> = {
+    [TEAM_ROUTE]: { body: schedule(inPlay('Half time')) },
+    [bluefireRoute]: { body: bluefireSchedule(inPlay('Half time')) },
+  }
+  const h = harness(on, routes, { ...followingBoth, ...colouredLogos })
+  await start($)
+  await settle()
+  routes[TEAM_ROUTE] = { body: schedule(inPlay('3rd quarter')) }
+  routes[bluefireRoute] = { body: bluefireSchedule(inPlay('3rd quarter')) }
+
+  await start($)
+  await settle()
+
+  expect(h.toasts).toHaveLength(1)
+})
+
+const atlantaFollowed = { sport: 'football', ...atlanta }
+
+test('following lists each team with its sport emoji', async ($, on) => {
+  harness(on, {}, { followed: [{ sport: 'basketball', ...valkyries }, atlantaFollowed] })
+  await start($)
+
+  const { text } = await run($, 'following')
+
+  expect(text).toBe('Following 2 teams:\n🏀 Golden State Valkyries\n⚽ Atletico Atlanta')
+})
+
+test('following with one team uses the singular', async ($, on) => {
+  harness(on, {}, followingValkyries)
+  await start($)
+
+  expect((await run($, 'following')).text).toBe('Following 1 team:\n🏀 Golden State Valkyries')
+})
+
+test('following with nothing followed points at follow-team', async ($, on) => {
+  harness(on, {})
+  await start($)
+
+  expect((await run($, 'following')).text).toBe('Not following any team. Try /follow-team <team name>.')
+})
+
+test('following makes no requests', async ($, on) => {
+  const h = harness(on, {}, followingBoth)
+  await start($)
+  await settle()
+  const before = h.urls.length
+
+  await run($, 'following')
+
+  expect(h.urls).toHaveLength(before)
+})
+
+test('unfollow-team by name with several matches asks which', async ($, on) => {
+  const h = harness(on, {}, followingBoth)
+  h.asks.answer = '🏀 Bluefire Valkyries (W)'
+  await start($)
+
+  const { text } = await run($, 'unfollow-team', 'valkyries')
+
+  expect(h.asks.calls[0].labels).toEqual(['🏀 Golden State Valkyries', '🏀 Bluefire Valkyries (W)'])
+  expect(text).toBe('Stopped following Bluefire Valkyries (W).')
+  expect(h.store.get('followed')).toEqual([{ sport: 'basketball', ...valkyries }])
+})
+
+test('unfollow-team with no name and several follows asks which, and a dismissal changes nothing', async ($, on) => {
+  const h = harness(on, {}, followingBoth)
+  await start($)
+
+  const { text } = await run($, 'unfollow-team')
+
+  expect(h.asks.calls).toHaveLength(1)
+  expect(text).toBe('No team unfollowed.')
+  expect(h.store.get('followed')).toHaveLength(2)
+})
+
+test('unfollow-team with a name matching one of several removes just that team', async ($, on) => {
+  const h = harness(on, {}, followingBoth)
+  await start($)
+
+  await run($, 'unfollow-team', 'bluefire')
+
+  expect(h.asks.calls).toHaveLength(0)
+  expect(h.store.get('followed')).toEqual([{ sport: 'basketball', ...valkyries }])
+})
+
+test('unfollowing one team keeps polling the other', async ($, on) => {
+  harness(
+    on,
+    { [TEAM_ROUTE]: { body: schedule(liveMatch) }, [bluefireRoute]: { body: bluefireSchedule(bluefireLive) } },
+    followingBoth,
+  )
+  await start($)
+  await settle()
+
+  await run($, 'unfollow-team', 'bluefire')
+
+  expect(Object.keys(states.readings)).toEqual([VALKYRIES_KEY])
+})
+
+test('a poll that returns after its team is unfollowed is discarded', async ($, on) => {
+  let release!: () => void
+  let entered!: () => void
+  const gate = new Promise<void>(resolve => (release = resolve))
+  const fetching = new Promise<void>(resolve => (entered = resolve))
+  harness(
+    on,
+    { [TEAM_ROUTE]: { body: schedule(liveMatch), gate, onFetch: entered }, [bluefireRoute]: { body: bluefireSchedule(finishedMatch) } },
+    followingBoth,
+  )
+
+  const starting = start($)
+  await fetching
+  await run($, 'unfollow-team', 'golden state')
+  release()
+  await starting
+  await settle()
+
+  expect(readingFor(VALKYRIES_KEY)).toBeNull()
+  expect(Object.keys(states.readings ?? {})).not.toContain(VALKYRIES_KEY)
+})
+
+test('unfollow-team with more than four follows opens the pane, and picking one unfollows it', async ($, on) => {
+  const teams = manyTeams(6)
+  const h = harness(on, {}, { followed: teams.map(team => ({ sport: 'basketball', ...team })) })
+  await start($)
+
+  const { text } = await run($, 'unfollow-team')
+
+  expect(h.asks.calls).toHaveLength(0)
+  expect(h.panes.opened[0]).toMatchObject({ id: 'sportsball-teams', title: 'Teams you follow', focus: true, closeOnEscape: true })
+  expect(text).toContain('Pick a team to stop following')
+  expect(states.pickAction).toBe('unfollow')
+  const pane = await mountTeamPane($)
+  const select = walk(await pane.drawn()).find(n => n.type === 'Select')
+  expect(select?.props?.options.map((o: any) => o.label)).toEqual(teams.map(t => `🏀 ${t.name}`))
+
+  await pane.select({ key: select?.props?.key, value: select?.props?.options[2].value })
+
+  expect((h.store.get('followed') as any[]).map(t => t.slug)).toEqual(teams.filter((_, i) => i !== 2).map(t => t.slug))
+  expect(h.panes.closed.map(closed => closed.id)).toEqual(['sportsball-teams'])
+  expect(states.pickAction).toBe('follow')
+})
+
+test('an unfollow pane that was dismissed does not turn the next follow pick into an unfollow', async ($, on) => {
+  const rovers = Array.from({ length: 5 }, (_, i) => ({ name: `Rovers ${i + 1}`, slug: `rovers-${i + 1}` }))
+  const h = harness(on, searchRoutes(rovers), { followed: manyTeams(6).map(team => ({ sport: 'basketball', ...team })) })
+  await start($)
+  await run($, 'unfollow-team')
+  await run($, 'follow-team', 'rovers')
+
+  const pane = await mountTeamPane($)
+  const select = walk(await pane.drawn()).find(n => n.type === 'Select')
+  await pane.select({ key: select?.props?.key, value: select?.props?.options[1].value })
+
+  expect(h.store.get('followed')).toHaveLength(7)
+  expect(h.store.get('followed')).toContainEqual({ sport: 'basketball', ...rovers[1] })
+})
+
+const gameRows = (tree: Node) => wrappingRows(tree).filter(row => !flatText(row).startsWith('Powered'))
+
+const followedTeams = (count: number) => manyTeams(count).map(team => ({ sport: 'basketball', ...team }))
+
+const gamesFor = (count: number, make: (i: number) => object) => {
+  const routes: Record<string, Route> = {}
+  manyTeams(count).forEach((team, i) => (routes[`slug=${team.slug}&`] = { body: { ...schedule(make(i)), team } }))
+
+  return routes
+}
+
+const liveGame = (i: number, patch: object = {}) => ({ ...liveMatch, home: `Home ${i + 1}`, away: `Away ${i + 1}`, url: `/g${i + 1}/`, ...patch })
+
+test('the band shows a row per game, live first, then upcoming, then finished', async ($, on) => {
+  const routes = gamesFor(3, i =>
+    [
+      finishedAgo(30, { home: 'Home 1', url: '/g1/' }),
+      upcomingIn(60, { home: 'Home 2', url: '/g2/' }),
+      liveGame(2),
+    ][i],
+  )
+  harness(on, routes, { followed: followedTeams(3) })
+  await start($)
+  await until(() => Object.keys(states.readings ?? {}).length === 3)
+
+  const rows = gameRows(await mountBand($)).map(flatText)
+
+  expect(rows).toHaveLength(3)
+  expect(rows[0]).toContain('Home 3')
+  expect(rows[1]).toContain('Home 2')
+  expect(rows[2]).toContain('Home 1')
+})
+
+test('a game between two followed teams shows once', async ($, on) => {
+  harness(
+    on,
+    { [TEAM_ROUTE]: { body: schedule(liveMatch) }, [bluefireRoute]: { body: bluefireSchedule(liveMatch) } },
+    followingBoth,
+  )
+  await start($)
+  await until(() => Object.keys(states.readings ?? {}).length === 2)
+
+  expect(gameRows(await mountBand($))).toHaveLength(1)
+})
+
+test('the credit sits once, after the last game row', async ($, on) => {
+  harness(on, gamesFor(3, i => liveGame(i)), { followed: followedTeams(3) })
+  await start($)
+  await until(() => Object.keys(states.readings ?? {}).length === 3)
+
+  const tree = await mountBand($)
+  const text = flatText(tree)
+
+  expect(links(tree)).toHaveLength(1)
+  expect(text.indexOf('Powered')).toBeGreaterThan(text.indexOf('Home 3'))
+})
+
+test('a stale reading dims only its own row', async ($, on) => {
+  const routes: Record<string, Route> = {
+    [TEAM_ROUTE]: { body: schedule(liveMatch) },
+    [bluefireRoute]: { body: bluefireSchedule(bluefireLive) },
+  }
+  harness(on, routes, { ...followingBoth, ...colouredLogos })
+  await start($)
+  await until(() => Object.keys(states.readings ?? {}).length === 2)
+  routes[TEAM_ROUTE] = { status: 500, body: 'oops' }
+  await start($)
+  await settle()
+
+  const rows = gameRows(await mountBand($))
+
+  expect(rows.map(row => row.props?.dimColor)).toEqual([true, false])
+})
+
+test('more than six games show six rows and a +N more games line', async ($, on) => {
+  harness(on, gamesFor(20, i => liveGame(i)), { followed: followedTeams(20) })
+  await start($)
+  await until(() => Object.keys(states.readings ?? {}).length === 20)
+
+  const tree = await mountBand($)
+
+  expect(gameRows(tree)).toHaveLength(6)
+  expect(textNode(tree, '+14 more games')).toBeDefined()
+  expect(links(tree)).toHaveLength(1)
+})
+
+test('one game over the limit says +1 more game', async ($, on) => {
+  harness(on, gamesFor(7, i => liveGame(i)), { followed: followedTeams(7) })
+  await start($)
+  await until(() => Object.keys(states.readings ?? {}).length === 7)
+
+  expect(textNode(await mountBand($), '+1 more game')).toBeDefined()
+})
+
+test('a stagger timer firing after its team was unfollowed does not stop a later refollow polling', async ($, on) => {
+  const h = harness(
+    on,
+    {
+      [TEAM_ROUTE]: { body: schedule(liveMatch) },
+      [bluefireRoute]: { body: bluefireSchedule(bluefireLive) },
+      ...searchRoutes([bluefire]),
+    },
+    followingBoth,
+  )
+  let release!: () => void
+  h.staggerGate.hold = new Promise<void>(resolve => (release = resolve))
+  await start($)
+  await run($, 'unfollow-team', 'bluefire')
+  release()
+  await settle()
+
+  await run($, 'follow-team', 'bluefire')
+
+  expect(readingFor(BLUEFIRE_KEY)).not.toBeNull()
+})
+
+test('following a team staggers the loops that were not yet running', async ($, on) => {
+  const h = harness(on, searchRoutes([], [atlanta]), followingBoth)
+
+  await run($, 'follow-team', 'atletico atlanta')
+
+  expect(h.staggers).toEqual([500, 1000])
+})
+
+test('following a team still replies when the first poll throws', async ($, on) => {
+  const h = harness(on, { [TEAM_ROUTE]: { body: schedule(liveMatch) }, ...searchRoutes([bluefire]) }, followingValkyries)
+  h.faults.clockNow = true
+
+  const { text } = await run($, 'follow-team', 'bluefire')
+
+  expect(text).toBe('Now following Bluefire Valkyries (W).')
+  expect(h.store.get('followed')).toHaveLength(2)
+})
+
+test('a team whose poll threw is restarted the next time teams are synced', async ($, on) => {
+  const h = harness(
+    on,
+    { [TEAM_ROUTE]: { body: schedule(liveMatch) }, [bluefireRoute]: { body: bluefireSchedule(bluefireLive) }, ...searchRoutes([bluefire]) },
+    followingValkyries,
+  )
+  h.faults.clockNow = true
+  await start($).catch(() => {})
+  h.faults.clockNow = false
+
+  await run($, 'follow-team', 'bluefire')
+
+  expect(readingFor(VALKYRIES_KEY)).not.toBeNull()
+})
+
+test('following a team inside the stagger window does not fetch a waiting team twice', async ($, on) => {
+  const h = harness(
+    on,
+    { [TEAM_ROUTE]: { body: schedule(liveMatch) }, [bluefireRoute]: { body: bluefireSchedule(bluefireLive) }, ...searchRoutes([], [atlanta]) },
+    followingBoth,
+  )
+  let release!: () => void
+  h.staggerGate.hold = new Promise<void>(resolve => (release = resolve))
+  await start($)
+  await run($, 'follow-team', 'atletico atlanta')
+
+  release()
+  await settle()
+
+  expect(h.urls.filter(url => url.includes(bluefireRoute))).toHaveLength(1)
+})
+
+test('consecutive poll errors double the retry delay up to the idle cadence, and a success resets it', async ($, on) => {
+  const routes: Record<string, Route> = { [TEAM_ROUTE]: { body: schedule(liveMatch) } }
+  const h = harness(on, routes, followingValkyries)
+  await start($)
+  routes[TEAM_ROUTE] = { status: 500, body: 'oops' }
+  for (let i = 0; i < 5; i++) await start($)
+  routes[TEAM_ROUTE] = { body: schedule(liveMatch) }
+
+  await start($)
+
+  expect(h.delays).toEqual([30_000, 60_000, 120_000, 240_000, 300_000, 300_000, 30_000])
+})
+
+test('a pane pick for a team already unfollowed says so and changes nothing', async ($, on) => {
+  const teams = manyTeams(6)
+  const h = harness(on, {}, { followed: teams.map(team => ({ sport: 'basketball', ...team })) })
+  await start($)
+  await run($, 'unfollow-team')
+  const left = (h.store.get('followed') as any[]).filter(team => team.slug !== teams[2].slug)
+  h.store.set('followed', left)
+  const pane = await mountTeamPane($)
+  const select = walk(await pane.drawn()).find(n => n.type === 'Select')
+
+  await pane.select({ key: select?.props?.key, value: select?.props?.options[2].value })
+
+  expect(h.toasts.map(toast => toast.text)).toEqual(['Not following Atletico 3.'])
+  expect(h.store.get('followed')).toEqual(left)
 })
