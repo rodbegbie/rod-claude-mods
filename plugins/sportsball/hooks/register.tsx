@@ -48,6 +48,7 @@ const GAME_LENGTH_MS: Record<Sport, number> = { basketball: 150 * MINUTE_MS, foo
 const pendingPolls = new Map<string, { cancel: () => void }>()
 const activePolls = new Map<string, number>()
 const lastToast = new Map<string, string>()
+const errorCounts = new Map<string, number>()
 let lastGeneration = 0
 let helperUsable: boolean | null = null
 const attemptedLogos = new Set<string>()
@@ -268,7 +269,9 @@ async function follow($: EngineInterface, hit: TeamHit): Promise<string> {
 }
 
 async function unfollow($: EngineInterface, team: Followed): Promise<string> {
-  const rest = (await followedTeams($)).filter(followed => teamKey(followed) !== teamKey(team))
+  const followed = await followedTeams($)
+  if (!followed.some(item => teamKey(item) === teamKey(team))) return `Not following ${team.name}.`
+  const rest = followed.filter(item => teamKey(item) !== teamKey(team))
   await $.store.set('followed', rest)
   await syncPolls($)
 
@@ -502,11 +505,10 @@ async function ensureColours($: EngineInterface, game: LiveGame): Promise<void> 
   }
 }
 
-function pollDelay(phase: Phase | null): number {
-  if (phase === 'live') return LIVE_POLL_MS
-  if (phase === 'upcoming') return UPCOMING_POLL_MS
+function pollDelay(phase: Phase | null, failures = 0): number {
+  const base = phase === 'live' ? LIVE_POLL_MS : phase === 'upcoming' ? UPCOMING_POLL_MS : IDLE_POLL_MS
 
-  return IDLE_POLL_MS
+  return Math.min(IDLE_POLL_MS, base * 2 ** failures)
 }
 
 function kickOffTime(startsAt: number): string {
@@ -539,6 +541,7 @@ function stopPoll(key: string): void {
   pendingPolls.get(key)?.cancel()
   pendingPolls.delete(key)
   activePolls.delete(key)
+  errorCounts.delete(key)
 }
 
 async function dropUnfollowed($: EngineInterface, followed: Followed[]): Promise<void> {
@@ -553,8 +556,13 @@ async function dropUnfollowed($: EngineInterface, followed: Followed[]): Promise
 async function pollStaggered($: EngineInterface, teams: Followed[]): Promise<void> {
   const [first, ...rest] = teams
   if (!first) return
-  rest.forEach((team, i) => $.clock.after((i + 1) * STAGGER_MS, () => void poll($, team).catch(() => {})))
-  await poll($, first)
+  rest.forEach((team, i) => {
+    const key = teamKey(team)
+    pendingPolls.get(key)?.cancel()
+    activePolls.set(key, ++lastGeneration)
+    pendingPolls.set(key, $.clock.after((i + 1) * STAGGER_MS, () => void poll($, team).catch(() => {})))
+  })
+  await poll($, first).catch(() => {})
 }
 
 async function syncPolls($: EngineInterface): Promise<void> {
@@ -574,35 +582,38 @@ async function poll($: EngineInterface, team: Followed): Promise<void> {
   const generation = ++lastGeneration
   activePolls.set(key, generation)
   const isLatest = () => activePolls.get(key) === generation
-  pendingPolls.get(key)?.cancel()
-  pendingPolls.delete(key)
-  const games = await fetchGames($, team)
-  const isFollowed = (await followedTeams($)).some(followed => teamKey(followed) === key)
-  const now = await $.clock.now()
-  const previous = (await read($, readings))[key] ?? null
-  if (!isLatest()) return
-  if (!isFollowed) {
-    activePolls.delete(key)
-
-    return
-  }
-  const next = nextReading(games === 'error' ? 'error' : pickGame(games, team.sport, now), team, previous, now)
-  await update($, readings, all => withReading(all, key, next))
-  if (!isLatest()) return
-  if (games !== 'error' && (await read($, isOn)) && isLatest()) {
-    const toast = announcement(team.sport, previous, games)
-    const gameKey = previous?.game?.key ?? ''
-    if (toast && lastToast.get(gameKey) !== toast) {
-      lastToast.set(gameKey, toast)
-      $.ui.toast(toast, { timeoutMs: TOAST_MS })
+  let isScheduled = false
+  try {
+    pendingPolls.get(key)?.cancel()
+    pendingPolls.delete(key)
+    const games = await fetchGames($, team)
+    const isFollowed = (await followedTeams($)).some(followed => teamKey(followed) === key)
+    const now = await $.clock.now()
+    const previous = (await read($, readings))[key] ?? null
+    if (!isLatest() || !isFollowed) return
+    const failures = games === 'error' ? (errorCounts.get(key) ?? 0) + 1 : 0
+    errorCounts.set(key, failures)
+    const next = nextReading(games === 'error' ? 'error' : pickGame(games, team.sport, now), team, previous, now)
+    await update($, readings, all => withReading(all, key, next))
+    if (!isLatest()) return
+    if (games !== 'error' && (await read($, isOn)) && isLatest()) {
+      const toast = announcement(team.sport, previous, games)
+      const gameKey = previous?.game?.key ?? ''
+      if (toast && lastToast.get(gameKey) !== toast) {
+        lastToast.set(gameKey, toast)
+        $.ui.toast(toast, { timeoutMs: TOAST_MS })
+      }
     }
-  }
-  if (!isLatest()) return
-  pendingPolls.get(key)?.cancel()
-  pendingPolls.set(key, $.clock.after(pollDelay(next?.phase ?? null), () => poll($, team)))
-  if (next?.game) {
-    const game = next.game
-    $.clock.after(0, () => void ensureColours($, game).catch(() => {}))
+    if (!isLatest()) return
+    pendingPolls.get(key)?.cancel()
+    pendingPolls.set(key, $.clock.after(pollDelay(next?.phase ?? null, failures), () => poll($, team)))
+    isScheduled = true
+    if (next?.game) {
+      const game = next.game
+      $.clock.after(0, () => void ensureColours($, game).catch(() => {}))
+    }
+  } finally {
+    if (!isScheduled && isLatest()) activePolls.delete(key)
   }
 }
 

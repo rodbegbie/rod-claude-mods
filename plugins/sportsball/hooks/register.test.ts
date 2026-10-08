@@ -79,7 +79,11 @@ function harness(on: any, routes: Record<string, Route>, initial: Record<string,
     }
     return e.ms === 0 ? Promise.resolve({ value: undefined }) : (delays.push(e.ms), new Promise(() => {}))
   })
-  on('clock.now', async () => ({ value: clock.now }))
+  const faults = { clockNow: false }
+  on('clock.now', async () => {
+    if (faults.clockNow) throw new Error('boom')
+    return { value: clock.now }
+  })
   const toasts: { text: string; timeoutMs?: number }[] = []
   on('ui.toast', async (_$: any, e: any) => (toasts.push({ text: e.text, timeoutMs: e.timeoutMs }), { value: undefined }))
   on('ui.render', async () => ({ type: 'Text', children: ['ENGINE'] }))
@@ -96,7 +100,7 @@ function harness(on: any, routes: Record<string, Route>, initial: Record<string,
   const panes = { opened: [] as any[], closed: [] as any[] }
   on('ui.open', async (_$: any, e: any) => (panes.opened.push(e), { value: { isPlaced: true } }))
   on('ui.close', async (_$: any, e: any) => (panes.closed.push(e), { value: undefined }))
-  return { store, urls, delays, staggers, staggerGate, clock, proc, toasts, asks, panes }
+  return { store, urls, delays, staggers, staggerGate, faults, clock, proc, toasts, asks, panes }
 }
 
 const liveMatch = {
@@ -2107,4 +2111,75 @@ test('following a team staggers the loops that were not yet running', async ($, 
   await run($, 'follow-team', 'atletico atlanta')
 
   expect(h.staggers).toEqual([500, 1000])
+})
+
+test('following a team still replies when the first poll throws', async ($, on) => {
+  const h = harness(on, { [TEAM_ROUTE]: { body: schedule(liveMatch) }, ...searchRoutes([bluefire]) }, followingValkyries)
+  h.faults.clockNow = true
+
+  const { text } = await run($, 'follow-team', 'bluefire')
+
+  expect(text).toBe('Now following Bluefire Valkyries (W).')
+  expect(h.store.get('followed')).toHaveLength(2)
+})
+
+test('a team whose poll threw is restarted the next time teams are synced', async ($, on) => {
+  const h = harness(
+    on,
+    { [TEAM_ROUTE]: { body: schedule(liveMatch) }, [bluefireRoute]: { body: bluefireSchedule(bluefireLive) }, ...searchRoutes([bluefire]) },
+    followingValkyries,
+  )
+  h.faults.clockNow = true
+  await start($).catch(() => {})
+  h.faults.clockNow = false
+
+  await run($, 'follow-team', 'bluefire')
+
+  expect(readingFor(VALKYRIES_KEY)).not.toBeNull()
+})
+
+test('following a team inside the stagger window does not fetch a waiting team twice', async ($, on) => {
+  const h = harness(
+    on,
+    { [TEAM_ROUTE]: { body: schedule(liveMatch) }, [bluefireRoute]: { body: bluefireSchedule(bluefireLive) }, ...searchRoutes([], [atlanta]) },
+    followingBoth,
+  )
+  let release!: () => void
+  h.staggerGate.hold = new Promise<void>(resolve => (release = resolve))
+  await start($)
+  await run($, 'follow-team', 'atletico atlanta')
+
+  release()
+  await settle()
+
+  expect(h.urls.filter(url => url.includes(bluefireRoute))).toHaveLength(1)
+})
+
+test('consecutive poll errors double the retry delay up to the idle cadence, and a success resets it', async ($, on) => {
+  const routes: Record<string, Route> = { [TEAM_ROUTE]: { body: schedule(liveMatch) } }
+  const h = harness(on, routes, followingValkyries)
+  await start($)
+  routes[TEAM_ROUTE] = { status: 500, body: 'oops' }
+  for (let i = 0; i < 5; i++) await start($)
+  routes[TEAM_ROUTE] = { body: schedule(liveMatch) }
+
+  await start($)
+
+  expect(h.delays).toEqual([30_000, 60_000, 120_000, 240_000, 300_000, 300_000, 30_000])
+})
+
+test('a pane pick for a team already unfollowed says so and changes nothing', async ($, on) => {
+  const teams = manyTeams(6)
+  const h = harness(on, {}, { followed: teams.map(team => ({ sport: 'basketball', ...team })) })
+  await start($)
+  await run($, 'unfollow-team')
+  const left = (h.store.get('followed') as any[]).filter(team => team.slug !== teams[2].slug)
+  h.store.set('followed', left)
+  const pane = await mountTeamPane($)
+  const select = walk(await pane.drawn()).find(n => n.type === 'Select')
+
+  await pane.select({ key: select?.props?.key, value: select?.props?.options[2].value })
+
+  expect(h.toasts.map(toast => toast.text)).toEqual(['Not following Atletico 3.'])
+  expect(h.store.get('followed')).toEqual(left)
 })

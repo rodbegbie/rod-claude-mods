@@ -146,12 +146,27 @@ paths:
   `start` repeatedly to force a fresh poll, so it must not skip a team
   that already has a loop. Follow and unfollow run `syncPolls`, which
   only starts missing loops (staggered the same way) and drops removed
-  teams. A poll that finds its team no longer followed deletes its own
-  `activePolls` key, so a late stagger timer cannot block a refollow. Module variables
+  teams. A team waiting on its stagger timer counts as active: it is
+  marked in `activePolls` and its timer sits in `pendingPolls`, so
+  `syncPolls` skips it and a repeat `startPolls` cancels and replaces the
+  timer instead of fetching twice. A poll that ends without scheduling
+  its next run (its team is no longer followed, or it threw) clears its
+  own `activePolls` key in a `finally`, so nothing blocks a restart. The
+  first poll in `pollStaggered` is caught like the staggered ones, so a
+  failure cannot escape `session.start` or `/follow-team`.
+- A failed fetch doubles that team's next delay for each consecutive
+  error (`errorCounts`), capped at `IDLE_POLL_MS`, and a success resets
+  it. Without it a blown budget (HTTP 429) would be retried every 30 or
+  60 seconds by every followed team. Module variables
   reset when the mod hot-reloads but `$.state` does not, so
   `dropUnfollowed` also drops readings with no loop.
 - Followed teams are capped at `MAX_FOLLOWED` (20) to protect the API
-  budget: each idle team costs 288 requests a day. `followedTeams($)`
+  budget: each idle team costs 288 requests a day. A team that plays
+  costs about 620 more that day (football: 120 upcoming polls, 240 live
+  polls of two requests each, about 24 finished polls; basketball about
+  420). With 20 followed, roughly 7 playing the same day reaches the
+  ~10,000 a day allowance. These are estimates from the poll cadences,
+  not measured against SportScore's counter. `followedTeams($)`
   drops duplicates by `teamKey`, so a hand-edited store polls a team
   once, but it does not truncate a list over the cap.
 - Two followed teams in one game poll separately, so both see the same
